@@ -1,0 +1,47 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Order matters — most specific paths first
+[[redirects]]
+  from = "/api/ip"
+  to = "/.netlify/functions/ip"
+  status = 200
+
+[[redirects]]
+  from = "/api/login"
+  to = "/.netlify/functions/login"
+  status = 200
+
+[[redirects]]
+  from = "/api/bookings/save"
+  to = "/.netlify/functions/bookings-save"
+  status = 200
+
+[[redirects]]
+  from = "/api/bookings/delete"
+  to = "/.netlify/functions/bookings-delete"
+  status = 200
+
+[[redirects]]
+  from = "/api/bookings/sync"
+  to = "/.netlify/functions/bookings-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/bookings"
+  to = "/.netlify/functions/bookings"
+  status = 200
+
+[[redirects]]
+  from = "/api/hotels/save"
+  to = "/.netlify/functions/hotels-save"
+  status = 200
+
+[[redirects]]
+  from = "/api/hotels"
+  to = "/.netlify/functions/hotels"
+  status = 200

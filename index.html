@@ -1,0 +1,2343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mishri CRM">
+<meta name="theme-color" content="#0F1117">
+<title>✈ Mishri Holidays CRM</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Register service worker (enables install prompt + offline app shell)
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){/* not fatal */});
+  });
+}
+
+// Track install prompt
+var deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();
+  deferredPrompt=e;
+  setTimeout(function(){
+    var btn=document.getElementById('installBtn');
+    if(btn)btn.style.display='flex';
+  },1000);
+});
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0F1117;color:#E8E0D0;font-family:'Segoe UI',Arial,sans-serif}
+input,select,button{font-family:inherit}
+#app{display:flex;flex-direction:column;height:100dvh}
+#hdr{background:#1A1D27;border-bottom:1px solid #2A2D3A;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:50}
+#content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 90px}
+#nav{position:fixed;bottom:0;left:0;right:0;background:#1A1D27;border-top:1px solid #2A2D3A;display:grid;grid-template-columns:repeat(4,1fr);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.ni{display:flex;flex-direction:column;align-items:center;padding:8px 2px;cursor:pointer;color:#8A8090;font-size:10px;gap:2px;border:none;background:none;width:100%}
+.ni.on{color:#D4A843}.ni .ic{font-size:20px}
+@media(min-width:768px){#content{max-width:960px;margin:0 auto;padding:20px 24px 40px}}
+.card{background:#1A1D27;border:1px solid #2A2D3A;border-radius:10px;padding:12px;margin-bottom:10px}
+.inp{width:100%;background:#0F1117;border:1px solid #2A2D3A;border-radius:7px;padding:9px 11px;color:#E8E0D0;font-size:14px;outline:none}
+.inp:focus{border-color:#D4A843}
+.sel{width:100%;background:#1A1D27;border:1px solid #2A2D3A;border-radius:7px;padding:9px 11px;color:#E8E0D0;font-size:14px;outline:none}
+.lbl{font-size:11px;color:#8A8090;margin-bottom:3px;display:block}
+.fld{margin-bottom:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid transparent;white-space:nowrap}
+.sm{border-radius:16px;padding:6px 12px;font-size:12px}
+.bg{background:#D4A843;color:#1a1d27;border-color:#D4A843}
+.og{background:transparent;color:#D4A843;border-color:#D4A843}
+.ob{background:transparent;color:#3498DB;border-color:#3498DB}
+.or{background:transparent;color:#E74C3C;border-color:#E74C3C}
+.bm{background:transparent;color:#8A8090;border-color:#8A8090}
+.gn{background:#2ECC71;color:#1a1d27;border-color:#2ECC71}
+.bn{background:#3498DB;color:#fff;border-color:#3498DB}
+.pp{background:#9B59B6;color:#fff;border-color:#9B59B6}
+.o2{background:#E67E22;color:#fff;border-color:#E67E22}
+.tabs{display:flex;overflow-x:auto;border-bottom:1px solid #2A2D3A;background:#0F1117;-webkit-overflow-scrolling:touch}
+.tb{padding:9px 13px;font-size:12px;font-weight:600;background:transparent;border:none;border-bottom:2px solid transparent;color:#8A8090;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.tb.on{color:#D4A843;border-bottom-color:#D4A843}
+.badge{font-size:10px;border-radius:8px;padding:2px 7px}
+.row{display:flex;justify-content:space-between;align-items:center}
+.toast{position:fixed;bottom:75px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:16px;font-size:13px;font-weight:600;z-index:9999;white-space:nowrap;pointer-events:none}
+.sect{font-size:11px;font-weight:700;color:#8A8090;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid #2A2D3A}
+.hblock{border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid #2A2D3A}
+.mkbtn{flex:1;padding:9px 4px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid;text-align:center}
+.syncbadge{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600}
+table th,table td{vertical-align:middle}
+table td .inp,table td .sel{min-width:60px}
+details summary{outline:none}
+details summary::-webkit-details-marker{color:#D4A843}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <div>
+      <div style="font-size:16px;font-weight:900;color:#D4A843">✈ MISHRI HOLIDAYS</div>
+      <div id="syncStatus" style="font-size:10px;color:#8A8090">Loading...</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn sm og" id="syncBtn" style="display:none">⟳ Sync</button>
+      <button class="btn sm" id="installBtn" style="display:none;background:#9B59B6;color:#fff;border-color:#9B59B6" onclick="installApp()">📲 Install</button>
+      <button class="btn bg sm" id="hdrNew">+ New</button>
+    </div>
+  </div>
+  <div id="content"><div style="display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:12px;color:#8A8090"><div style="font-size:32px">✈</div><div>Loading...</div></div></div>
+  <nav id="nav">
+    <button class="ni on" data-p="dash"><span class="ic">📊</span><span>Home</span></button>
+    <button class="ni" data-p="list"><span class="ic">📋</span><span>Bookings</span></button>
+    <button class="ni" data-p="hotels"><span class="ic">🏨</span><span>Hotels</span></button>
+    <button class="ni" data-p="sync"><span class="ic">📡</span><span>Sync</span></button>
+  </nav>
+</div>
+<script>
+"use strict";
+// ════════════════════════════════════════════════════════════
+//  MISHRI HOLIDAYS CRM
+//  Storage:
+//    Desktop  → data/bookings.json  (via server API)
+//    Mobile   → localStorage        (offline)
+//    WiFi on  → auto-sync + merge   (newer record wins)
+// ════════════════════════════════════════════════════════════
+
+var MEALS=['CP','MAP','AP','EP','AI'];
+var ROOM_CATS=['Deluxe','Super Deluxe','Suite','Premium','Standard','Executive','Club Room','Sea View','Pool View','Garden View','Cottage','Villa'];
+var STATUSES=['Quotation','Confirmed','Completed','Cancelled'];
+var DEF_HOTELS=[
+  {id:1,name:'Amara Grand',place:'Goa',cat:'Premium',ph:'+91 832 246 8800',em:'reservations@amaragrand.com',stars:5},
+  {id:2,name:'Cidade de Goa',place:'Goa',cat:'Luxury',ph:'+91 832 245 4545',em:'info@cidadedegoa.com',stars:5},
+  {id:3,name:'The Leela Palace',place:'Udaipur',cat:'Luxury',ph:'+91 294 670 1234',em:'reservations@theleela.com',stars:5},
+  {id:4,name:'Rambagh Palace',place:'Jaipur',cat:'Luxury',ph:'+91 141 221 1919',em:'rambagh@tajhotels.com',stars:5},
+  {id:5,name:'Radisson Blu',place:'Shimla',cat:'Standard',ph:'+91 177 665 4444',em:'shimla@radissonblu.com',stars:4},
+  {id:6,name:'Wildflower Hall',place:'Shimla',cat:'Luxury',ph:'+91 177 264 8585',em:'wildflower@oberoihotels.com',stars:5},
+  {id:7,name:'Ibis Styles',place:'Goa',cat:'Budget',ph:'+91 832 671 2345',em:'goa@ibishotels.com',stars:3},
+  {id:8,name:'Alsisar Haveli',place:'Jaipur',cat:'Heritage',ph:'+91 141 236 8290',em:'info@alsisarhaveli.com',stars:4}
+];
+
+// ══════════════════════════════════════════════════════════════
+//  STORAGE — IndexedDB (primary) + localStorage (fallback)
+//  IndexedDB survives "Clear browsing history" on Android Chrome
+// ══════════════════════════════════════════════════════════════
+var IDB={db:null};
+function idbOpen(){
+  return new Promise(function(res){
+    if(IDB.db){res(IDB.db);return;}
+    if(!window.indexedDB){res(null);return;}
+    var req=indexedDB.open('MishriCRM',2);
+    req.onupgradeneeded=function(e){var db=e.target.result;if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv');};
+    req.onsuccess=function(e){IDB.db=e.target.result;res(IDB.db);};
+    req.onerror=function(){res(null);};
+  });
+}
+function idbSet(k,v){
+  return idbOpen().then(function(db){
+    if(!db)return;
+    return new Promise(function(res){
+      var tx=db.transaction('kv','readwrite');
+      tx.objectStore('kv').put(JSON.stringify(v),'mc_'+k);
+      tx.oncomplete=res;tx.onerror=res;
+    });
+  });
+}
+function idbGet(k){
+  return idbOpen().then(function(db){
+    if(!db)return null;
+    return new Promise(function(res){
+      var tx=db.transaction('kv','readonly');
+      var req=tx.objectStore('kv').get('mc_'+k);
+      req.onsuccess=function(){try{res(req.result?JSON.parse(req.result):null);}catch(e){res(null);}};
+      req.onerror=function(){res(null);};
+    });
+  });
+}
+var LS={
+  g:function(k){try{var d=localStorage.getItem('mc_'+k);if(d)return JSON.parse(d);}catch(e){}return null;},
+  s:function(k,v){try{localStorage.setItem('mc_'+k,JSON.stringify(v));}catch(e){}idbSet(k,v).catch(function(){});}
+};
+function restoreFromIDB(){
+  var keys=['bookings','hotels','serverIp'];
+  return Promise.all(keys.map(function(k){
+    return idbGet(k).then(function(val){
+      if(val!==null){
+        try{if(!localStorage.getItem('mc_'+k)){localStorage.setItem('mc_'+k,JSON.stringify(val));}}catch(e){}
+      }
+    });
+  }));
+}
+function requestPersist(){
+  if(navigator.storage&&navigator.storage.persist){
+    navigator.storage.persist().then(function(g){if(g)console.log('MishriCRM: Persistent storage granted');});
+  }
+}
+
+// ── APP STATE ───────────────────────────────────────────────
+var APP={
+  page:'dash',
+  bookings:[],
+  hotels:LS.g('hotels')||DEF_HOTELS,
+  edit:null,
+  ftab:'guest',
+  online:false,      // is server reachable?
+  useRelative:false, // true = cloud (Netlify) or same-origin desktop server
+  serverIp:null,
+  authToken:LS.g('authToken')||null,
+  pendingSync:false  // local changes not yet synced
+};
+var REQUIRES_LOGIN = false; // password gateway disabled
+
+// ── TIMESTAMP ───────────────────────────────────────────────
+function now(){return new Date().toISOString();}
+
+// ── TOAST ───────────────────────────────────────────────────
+function toast(msg,ok){
+  document.querySelectorAll('.toast').forEach(function(t){t.remove();});
+  var t=document.createElement('div');t.className='toast';
+  t.style.background=(ok===false)?'#E74C3C':'#2ECC71';t.style.color='#fff';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(function(){t.remove();},2800);
+}
+
+// ── STATUS BAR ──────────────────────────────────────────────
+function updateStatusBar(){
+  var el=document.getElementById('syncStatus');
+  var sb=document.getElementById('syncBtn');
+  if(!el)return;
+  if(APP.online){
+    el.style.color='#2ECC71';
+    el.textContent=APP.useRelative?'● Online — synced to cloud':'● Desktop server connected — data/bookings.json';
+    if(sb) sb.style.display='';
+  } else {
+    el.style.color='#E67E22';
+    el.textContent='● Offline — data saved locally';
+    if(sb) sb.style.display='none';
+  }
+}
+
+// ── SERVER CHECK ────────────────────────────────────────────
+// Tries: 1) saved IP, 2) relative URL (when hosted on desktop itself)
+var SAVED_IP=LS.g('serverIp')||null;
+var SERVER_CANDIDATES=[];
+
+function buildCandidates(){
+  var c=[];
+  if(SAVED_IP) c.push('http://'+SAVED_IP+':7842');
+  // If served from desktop directly, relative works
+  if(window.location.hostname!=='localhost'&&window.location.port==='7842'){
+    c.push(window.location.origin);
+  }
+  // Common home router subnets to scan
+  var subnets=['192.168.29','192.168.1','192.168.0','10.0.0'];
+  subnets.forEach(function(s){
+    if(SAVED_IP&&SAVED_IP.startsWith(s)) return; // already added
+    c.push('http://'+s+'.1:7842'); // try .1 as fallback
+  });
+  return c;
+}
+
+function tryUrl(url){
+  return fetch(url+'/api/ip',{
+    signal:AbortSignal.timeout?AbortSignal.timeout(1500):undefined,
+    mode:'cors'
+  }).then(function(r){return r.json();})
+    .then(function(d){return {ok:true,ip:d.ip,base:url};});
+}
+
+function checkServer(){
+  // 1) Try same-origin first — this covers BOTH:
+  //    a) App deployed on Netlify (mobile & desktop both hit the same cloud URL)
+  //    b) App served by the desktop LAN server itself (port 7842)
+  return tryUrl(window.location.origin).then(function(res){
+    res.relative=true;return res;
+  }).catch(function(){
+    // 2) Fall back to LAN discovery (saved IP / subnet guesses) —
+    //    only relevant when the app was opened as a local file on mobile
+    //    and is pairing with a desktop server on the same WiFi.
+    var candidates=buildCandidates();
+    var chain=Promise.reject(new Error('start'));
+    candidates.slice(0,4).forEach(function(url){
+      chain=chain.catch(function(){return tryUrl(url);});
+    });
+    return chain;
+  }).then(function(res){
+    APP.online=true;
+    APP.useRelative=!!res.relative;
+    if(APP.useRelative){
+      APP.serverIp='cloud';
+    } else {
+      APP.serverIp=res.ip||res.base.replace('http://','').replace(':7842','');
+      SAVED_IP=APP.serverIp;
+      LS.s('serverIp',SAVED_IP);
+    }
+    updateStatusBar();return true;
+  }).catch(function(){APP.online=false;updateStatusBar();return false;});
+}
+
+// ── LAN AUTO-DISCOVERY (zero-config pairing) ─────────────────
+// Tries to find the desktop server on the same WiFi automatically,
+// without the user having to type in an IP address.
+function getLocalIP(){
+  return new Promise(function(resolve){
+    try{
+      var RTCPeerConnection=window.RTCPeerConnection||window.mozRTCPeerConnection||window.webkitRTCPeerConnection;
+      if(!RTCPeerConnection){resolve(null);return;}
+      var pc=new RTCPeerConnection({iceServers:[]});
+      var done=false;
+      pc.createDataChannel('');
+      pc.onicecandidate=function(e){
+        if(done||!e.candidate)return;
+        var m=/([0-9]{1,3}(?:\.[0-9]{1,3}){3})/.exec(e.candidate.candidate);
+        if(m&&m[1]!=='0.0.0.0'){done=true;try{pc.close();}catch(e2){}resolve(m[1]);}
+      };
+      pc.createOffer().then(function(o){return pc.setLocalDescription(o);}).catch(function(){if(!done){done=true;resolve(null);}});
+      setTimeout(function(){if(!done){done=true;try{pc.close();}catch(e3){}resolve(null);}},1200);
+    }catch(e){resolve(null);}
+  });
+}
+function scanRange(prefix,start,end,port){
+  return new Promise(function(resolve){
+    var found=false,i=start,batchSize=40;
+    function nextBatch(){
+      if(found)return;
+      if(i>end){if(!found)resolve(null);return;}
+      var batch=[];
+      for(var k=0;k<batchSize&&i<=end;k++,i++){
+        (function(ip){
+          batch.push(tryUrl('http://'+prefix+'.'+ip+':'+port).then(function(res){
+            if(!found){found=true;resolve(res);}
+          }).catch(function(){}));
+        })(i);
+      }
+      Promise.all(batch).then(function(){if(!found)nextBatch();});
+    }
+    nextBatch();
+  });
+}
+function scanNetwork(showToast){
+  if(showToast)toast('🔍 Desktop shodhi rahya chhiye (WiFi scan)...');
+  return getLocalIP().then(function(ip){
+    var prefixes=[];
+    if(ip){var p=ip.split('.');if(p.length===4)prefixes.push(p[0]+'.'+p[1]+'.'+p[2]);}
+    ['192.168.1','192.168.0','192.168.29','192.168.225','192.168.43','10.0.0'].forEach(function(pr){
+      if(prefixes.indexOf(pr)<0)prefixes.push(pr);
+    });
+    var chain=Promise.resolve(null);
+    prefixes.forEach(function(prefix){
+      chain=chain.then(function(res){if(res)return res;return scanRange(prefix,1,254,7842);});
+    });
+    return chain;
+  }).then(function(res){
+    if(res&&res.ip){
+      APP.online=true;APP.useRelative=false;APP.serverIp=res.ip;SAVED_IP=res.ip;LS.s('serverIp',res.ip);
+      updateStatusBar();
+      if(showToast)toast('✅ Desktop connected! '+res.ip);
+      return true;
+    } else {
+      if(showToast)toast('Desktop na malyu — IP manually nakho',false);
+      return false;
+    }
+  });
+}
+
+// ── CALC ────────────────────────────────────────────────────
+function nts(a,b){if(!a||!b)return 0;var d=(new Date(b)-new Date(a))/86400000;return d>0?Math.round(d):0;}
+function calcOpt(b,idx){
+  var opt=b['opt'+idx]||[];
+  var adults=parseInt(b.adults)||0;
+  var chargeableChild=Math.max(0,(parseInt(b.children)||0)-(parseInt(b.compChildren)||0));
+
+  // Hotel cost — adult portion (rooms + extra adults + mattress)
+  // Child cost — child rate portion (separate)
+  var hotelAdultCost=0;
+  var hotelChildCost=0;
+  var roomCost=0,extraAdultCost=0,mattressCost=0,childCost=0;
+  var maxExtraAdults=0,maxExtraMattress=0,maxHotelChargeableChild=0;
+  for(var i=0;i<opt.length;i++){
+    var h=opt[i];
+    if(!h.hotelName||!h.checkIn||!h.checkOut)continue;
+    var n=nts(h.checkIn,h.checkOut);
+    var hExtraAdults=parseInt(h.extraAdults)||0;
+    var hMattress=parseInt(h.extraMattress)||0;
+    var hChild=parseInt(h.chargeableChild)||0;
+    // Bug fix (1): Mattress Rate field removed — extra-mattress guests are already
+    // charged via the Extra Adult / Chargeable Child rate, so no separate mattress
+    // cost is added here (kept at 0 to avoid double-charging). Qty is still tracked
+    // for display purposes only.
+    roomCost+=n*(parseInt(h.rooms)||1)*(parseFloat(h.ratePerRoom)||0);
+    extraAdultCost+=n*hExtraAdults*(parseFloat(h.extraAdultRate)||0);
+    // Child cost is SEPARATE
+    childCost+=n*hChild*(parseFloat(h.childRate)||0);
+    if(hExtraAdults>maxExtraAdults)maxExtraAdults=hExtraAdults;
+    if(hMattress>maxExtraMattress)maxExtraMattress=hMattress;
+    if(hChild>maxHotelChargeableChild)maxHotelChargeableChild=hChild;
+  }
+  hotelAdultCost=roomCost+extraAdultCost+mattressCost;
+  hotelChildCost=childCost;
+  var hotelCost=hotelAdultCost+hotelChildCost; // total hotel
+  // Use the hotel-level chargeable-children qty (per-option, entered on the Hotels tab)
+  // when present — falls back to Guest-tab Children minus Comp. 0-5 Yrs otherwise.
+  // This is what was causing chargeable-child costing to silently disappear from quotations.
+  if(maxHotelChargeableChild>0) chargeableChild=maxHotelChargeableChild;
+
+  var vehCost=0;
+  (b.vehicles||[]).forEach(function(v){vehCost+=parseFloat(v.cost)||0;});
+
+  var mkPct=parseFloat(b['mkPct'+idx])||0;
+  var mkFixed=parseFloat(b['mkFixed'+idx])||0;
+  var misc=parseFloat(b['misc'+idx])||0;
+  // GST — selectable per option as 0% / 5% / 18% (some quotations are given without GST)
+  var gstPct=parseFloat(b['gstPct'+idx])||0;
+
+  // Adult base = adult hotel + vehicle
+  var adultBase=hotelAdultCost+vehCost;
+  var adultMarkup=adultBase*(mkPct/100)+mkFixed;
+  var adultMisc=parseFloat(misc)||0;
+  var subTotalAdult=adultBase+adultMarkup+adultMisc;
+  var gstAmtAdult=subTotalAdult*(gstPct/100);
+  var grandTotalAdult=subTotalAdult+gstAmtAdult;
+  // Fix: "Adults" on the Guest tab is already the TOTAL pax count (e.g. 14).
+  // "Extra Adults" on the Hotel tab is just a subset of that total used to
+  // split the room rate vs extra-adult rate (e.g. 5 rooms x 2 base = 10,
+  // remaining 4 of the 14 charged as Extra Adults) — it is NOT additional
+  // people on top of Adults. So the per-adult split uses Adults as-is;
+  // adding Extra Adults again double-counts them (14+4=18, wrongly
+  // inflating the head count and shrinking the per-adult figure).
+  var totalAdultHeads=adults;
+  var perAdult=totalAdultHeads>0?Math.round(grandTotalAdult/totalAdultHeads):0;
+
+  // Child base = child hotel only (vehicle already in adult cost)
+  var childMarkup=hotelChildCost*(mkPct/100);
+  var subTotalChild=hotelChildCost+childMarkup;
+  var gstAmtChild=subTotalChild*(gstPct/100);
+  var grandTotalChild=subTotalChild+gstAmtChild;
+  var perChild=chargeableChild>0?Math.round(grandTotalChild/chargeableChild):0;
+
+  // Grand total = adult total + child total (GST included)
+  var grandTotal=grandTotalAdult+grandTotalChild;
+  var base=adultBase; // for display
+  var markupAmt=adultMarkup+childMarkup;
+  var gstAmt=gstAmtAdult+gstAmtChild;
+  var subTotal=subTotalAdult+subTotalChild; // pre-GST total
+
+  return{
+    hotelCost:hotelCost,hotelAdultCost:hotelAdultCost,hotelChildCost:hotelChildCost,
+    vehCost:vehCost,base:base,markupAmt:markupAmt,misc:misc,
+    gstPct:gstPct,gstAmt:gstAmt,subTotal:subTotal,
+    grandTotal:grandTotal,grandTotalAdult:grandTotalAdult,grandTotalChild:grandTotalChild,
+    perAdult:perAdult,perChild:perChild,
+    chargeableChild:chargeableChild,adults:totalAdultHeads,baseAdults:adults,
+    markupFromPct:adultBase*(mkPct/100),mkFixed:mkFixed,
+    roomCost:roomCost,extraAdultCost:extraAdultCost,mattressCost:mattressCost,childCost:childCost,
+    maxExtraAdults:maxExtraAdults,maxExtraMattress:maxExtraMattress
+  };
+}
+function fmt(n){return '\u20b9'+Math.round(n||0).toLocaleString('en-IN');}
+function fmtD(d){if(!d)return '\u2014';try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
+// Bug fix (5): format a "HH:MM" time value as a friendly 12-hour AM/PM string for the voucher
+function fmtT(t){
+  if(!t) return '';
+  var m=String(t).match(/^(\d{1,2}):(\d{2})/);
+  if(!m) return t;
+  var h=parseInt(m[1],10),min=m[2];
+  var ap=h>=12?'PM':'AM';
+  var h12=h%12; if(h12===0)h12=12;
+  return h12+':'+min+' '+ap;
+}
+// Bug fix (5): Show the full meaning of the meal-plan code in brackets, e.g. "MAP (Breakfast and Dinner)"
+var MEAL_PLAN_LABELS={CP:'Breakfast Only',MAP:'Breakfast and Dinner',AP:'Breakfast, Lunch and Dinner',EP:'No Meals',AI:'All Inclusive'};
+function mealLabel(code){
+  if(!code) return '\u2014';
+  var key=String(code).toUpperCase();
+  var l=MEAL_PLAN_LABELS[key];
+  return l?(key+' ('+l+')'):code;
+}
+// Bug fix (3): Use the vehicle type(s) actually entered on the Vehicle tab instead of a hardcoded name.
+function vehicleTypeLabel(vehs){
+  var names=(vehs||[]).map(function(v){return (v.type||'').trim();}).filter(Boolean);
+  return names.length?names.join(', '):'As per itinerary';
+}
+
+// ── BLANK TEMPLATES ─────────────────────────────────────────
+function emH(){return{place:'',hotelName:'',roomCat:'',checkIn:'',checkOut:'',checkInTime:'14:00',checkOutTime:'12:00',confirmNo:'',address:'',phone:'',rooms:1,mealPlan:'CP',ratePerRoom:0,extraMattress:0,mattressRate:0,extraAdults:0,extraAdultRate:0,chargeableChild:0,childRate:0};}
+function emV(){return{type:'',vehicleNo:'',from:'',to:'',cost:0};}
+function isBlankHotel(h){return h && !h.hotelName && !h.place && !(parseFloat(h.ratePerRoom)>0);}
+function isBlankVehicle(v){return v && !v.type && !v.vehicleNo && !(parseFloat(v.cost)>0);}
+// Trims trailing empty hotel rows (kept in sync across opt1/2/3 by index) so an old
+// booking that still has 8 pre-created blank slots doesn't render 24 empty rows —
+// always leaves at least 1 row per option.
+function trimHotelRows(b){
+  // Only trim once per edit session — otherwise a row the agent just added via
+  // "+ Add Hotel" (still blank until they type into it) would get collapsed away
+  // again the next time this tab/panel re-renders.
+  if(b._hotelsTrimmed)return;
+  b._hotelsTrimmed=true;
+  ['opt1','opt2','opt3'].forEach(function(k){if(!b[k]||!b[k].length)b[k]=[emH()];});
+  var last=-1;
+  for(var i=0;i<Math.max(b.opt1.length,b.opt2.length,b.opt3.length);i++){
+    var blank=isBlankHotel(b.opt1[i])&&isBlankHotel(b.opt2[i])&&isBlankHotel(b.opt3[i]);
+    if(!blank)last=i;
+  }
+  var keep=Math.max(1,last+1);
+  ['opt1','opt2','opt3'].forEach(function(k){b[k]=b[k].slice(0,keep);while(b[k].length<keep)b[k].push(emH());});
+}
+function trimVehicleRows(b){
+  if(b._vehTrimmed)return;
+  b._vehTrimmed=true;
+  if(!b.vehicles||!b.vehicles.length){b.vehicles=[emV()];return;}
+  var last=-1;
+  b.vehicles.forEach(function(v,i){if(!isBlankVehicle(v))last=i;});
+  b.vehicles=b.vehicles.slice(0,Math.max(1,last+1));
+}
+function addHotelRow(b){
+  var last1=b.opt1[b.opt1.length-1]||{};
+  // Smart defaults: new row inherits place/dates/room-qty pattern from the previous
+  // hotel so multi-city itineraries don't need the same numbers typed again — the
+  // agent only edits what's actually different (usually just the city + hotel name).
+  var nh=emH();
+  nh.rooms=last1.rooms||b.rooms||1;
+  nh.extraAdults=last1.extraAdults||0;
+  nh.extraMattress=last1.extraMattress||0;
+  nh.chargeableChild=last1.chargeableChild||0;
+  nh.mealPlan=last1.mealPlan||'CP';
+  if(last1.checkOut){nh.checkIn=last1.checkOut;var d=new Date(last1.checkOut);if(!isNaN(d)){d.setDate(d.getDate()+1);nh.checkOut=d.toISOString().slice(0,10);}}
+  [1,2,3].forEach(function(n){var arr=b['opt'+n];var row=(n===1)?nh:JSON.parse(JSON.stringify(nh));if(n!==1){row.hotelName='';row.roomCat='';row.ratePerRoom=0;row.extraAdultRate=0;row.childRate=0;}arr.push(row);});
+}
+function removeHotelRow(b,idx){
+  [1,2,3].forEach(function(n){var arr=b['opt'+n];if(arr&&arr.length>1)arr.splice(idx,1);});
+}
+function addVehicleRow(b){b.vehicles.push(emV());}
+function removeVehicleRow(b,idx){if(b.vehicles.length>1)b.vehicles.splice(idx,1);}
+// Bug fix: a random quotNo can collide with an existing booking's quotNo. Since saveBooking()
+// matches records by quotNo, a collision would silently overwrite a different guest's booking
+// instead of creating a new one — which looks like "my save didn't work". Keep generating
+// until we get a number not already used by an existing booking.
+function genQuotNo(){
+  var existing={};(APP.bookings||[]).forEach(function(b){if(b&&b.quotNo)existing[b.quotNo]=true;});
+  var qn;
+  do{ qn='Mishri-'+(1300+Math.floor(Math.random()*9000)); }while(existing[qn]);
+  return qn;
+}
+function newBk(){
+  return{
+    quotNo:genQuotNo(),
+    guestName:'',contact:'',email:'',destination:'',
+    adults:2,children:0,compChildren:0,rooms:1,
+    opt1:[emH()],opt2:[emH()],opt3:[emH()],
+    vehicles:[emV()],
+    mkPct1:0,mkFixed1:0,misc1:0,gstPct1:0,
+    mkPct2:0,mkFixed2:0,misc2:0,gstPct2:0,
+    mkPct3:0,mkFixed3:0,misc3:0,gstPct3:0,
+    selectedOption:1,bookingRef:'',bookingDate:'',startDate:'',endDate:'',
+    driverName:'',driverContact:'',hotelConfirmNo:'',
+    itinerary:['','','','','','','','','',''],
+    inclusions:['Hotel accommodation as per selected option','Vehicle as per itinerary with driver bata','Meal plan as per hotel (CP/MAP/AP)','Toll, parking and driver allowance','All airport and railway station transfers','Sightseeing as per itinerary','Children below 5 yrs: Complimentary (no bed)'],
+    exclusions:['Air / train / bus ticket fare','Entry fees and monument tickets','Personal expenses and laundry','Travel and medical insurance','Tips to driver and hotel staff','Adventure activities and permits','Anything not mentioned in inclusions'],
+    status:'Quotation',paymentReceived:0,notes:'',
+    createdAt:now(),updatedAt:now()
+  };
+}
+
+// ════════════════════════════════════════════════════════════
+//  DATA LAYER — smart save/load with sync
+// ════════════════════════════════════════════════════════════
+
+// ── SERVER BASE URL ──────────────────────────────────────────
+function getBase(){
+  if(APP.useRelative) return ""; // Netlify (cloud) or desktop serving app on :7842 — same-origin
+  if(APP.serverIp) return "http://"+APP.serverIp+":7842"; // LAN desktop server
+  return "";
+}
+
+// ── AUTHENTICATED API FETCH ───────────────────────────────────
+// Adds the login token (cloud mode only) to every API call, and
+// forces re-login if the server says the token is invalid/expired.
+function apiFetch(path, opts){
+  opts=opts||{};
+  opts.headers=opts.headers||{};
+  if(APP.useRelative && APP.authToken){
+    opts.headers['Authorization']='Bearer '+APP.authToken;
+  }
+  return fetch(getBase()+path, opts).then(function(r){
+    if(r.status===401){
+      APP.authToken=null;LS.s('authToken',null);
+      showLoginScreen();
+      throw new Error('unauthorized');
+    }
+    return r;
+  });
+}
+
+// Load bookings: server if online, else localStorage
+function loadBookings(){
+  if(APP.online){
+    return apiFetch('/api/bookings').then(function(r){return r.json();})
+      .then(function(list){
+        APP.bookings=list||[];
+        LS.s('bookings',APP.bookings); // mirror to local
+        return APP.bookings;
+      }).catch(function(){
+        APP.bookings=LS.g('bookings')||[];
+        return APP.bookings;
+      });
+  } else {
+    APP.bookings=LS.g('bookings')||[];
+    return Promise.resolve(APP.bookings);
+  }
+}
+
+// Save one booking: server + local mirror
+function saveBooking(b){
+  b.updatedAt=now();
+  // Always save to localStorage immediately
+  var local=APP.bookings.slice();
+  var idx=-1;
+  for(var i=0;i<local.length;i++){if(local[i].quotNo===b.quotNo){idx=i;break;}}
+  var copy=JSON.parse(JSON.stringify(b));
+  if(idx>=0) local[idx]=copy; else local.unshift(copy);
+  APP.bookings=local;
+  LS.s('bookings',local);
+
+  if(APP.online){
+    return apiFetch('/api/bookings/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)})
+      .then(function(r){return r.json();})
+      .then(function(){toast('✅ Saved — desktop file updated!');return true;})
+      .catch(function(){toast('💾 Saved locally (server unreachable)');APP.pendingSync=true;return false;});
+  } else {
+    toast('💾 Saved locally — sync when online');
+    APP.pendingSync=true;
+    return Promise.resolve(false);
+  }
+}
+
+// Delete booking
+function deleteBooking(qn){
+  APP.bookings=APP.bookings.filter(function(b){return b.quotNo!==qn;});
+  LS.s('bookings',APP.bookings);
+  if(APP.online){
+    apiFetch('/api/bookings/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quotNo:qn})}).catch(function(){});
+  }
+  toast('Deleted');
+}
+
+// ── SYNC: send local → server, get merged back ──────────────
+function doSync(silent){
+  if(!APP.online){if(!silent)toast('Not connected to server',false);return Promise.resolve(false);}
+  var local=LS.g('bookings')||[];
+  if(!silent)toast('Syncing...');
+  return apiFetch('/api/bookings/sync',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({bookings:local})
+  }).then(function(r){return r.json();})
+  .then(function(res){
+    if(res.ok&&res.bookings){
+      var changed=JSON.stringify(res.bookings)!==JSON.stringify(APP.bookings);
+      APP.bookings=res.bookings;
+      LS.s('bookings',res.bookings);
+      APP.pendingSync=false;
+      if(!silent){
+        toast('✅ Synced! '+res.bookings.length+' bookings');
+        go(APP.page);
+      } else if(changed && (APP.page==='list'||APP.page==='dash')){
+        // Refresh the currently visible screen quietly if new data arrived from desktop
+        go(APP.page);
+      }
+      return true;
+    }
+    return false;
+  }).catch(function(){if(!silent)toast('Sync failed',false);return false;});
+}
+
+// ── EXPORT: copy all local data as JSON text ─────────────────
+function doExport(){
+  var local=LS.g('bookings')||[];
+  if(local.length===0){toast('કોઈ data નથી export કરવા માટે',false);return;}
+  var json=JSON.stringify({bookings:local,exportedAt:now(),source:'MishriCRM_mobile'});
+  // Copy to clipboard
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(json).then(function(){
+      toast('✅ '+local.length+' bookings copied! હવે Desktop માં Import કરો');
+    }).catch(function(){showExportText(json);});
+  } else {
+    showExportText(json);
+  }
+}
+
+function showExportText(json){
+  var old=document.getElementById('exportModal');
+  if(old)old.remove();
+  var modal=document.createElement('div');
+  modal.id='exportModal';
+  modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#0F1117EE;z-index:9999;display:flex;flex-direction:column;padding:16px;gap:10px';
+  var title=document.createElement('div');title.style.cssText='color:#D4A843;font-size:16px;font-weight:800;margin-top:40px';title.textContent='📋 આ Text Copy કરો';
+  var ta=document.createElement('textarea');
+  ta.style.cssText='flex:1;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:10px;font-size:11px;font-family:monospace';
+  ta.value=json;ta.readOnly=true;
+  ta.addEventListener('click',function(){ta.select();});
+  var copyBtn=document.createElement('button');
+  copyBtn.className='btn bg';copyBtn.textContent='બધું Select કરો & Copy';
+  copyBtn.addEventListener('click',function(){ta.select();document.execCommand('copy');toast('✅ Copied!');});
+  var closeBtn=document.createElement('button');
+  closeBtn.className='btn bm';closeBtn.textContent='બંધ કરો';
+  closeBtn.addEventListener('click',function(){modal.remove();});
+  modal.appendChild(title);modal.appendChild(ta);modal.appendChild(copyBtn);modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+  setTimeout(function(){ta.select();},300);
+}
+
+// ── CUSTOMER PICKER: reuse an existing customer's details for a repeat
+// booking, so the same person doesn't need to be typed in again from
+// scratch. Shows every unique guest (by name) found across bookings,
+// newest first, with live search. onPick(customer) is called with the
+// chosen {guestName, contact, email}; destination is deliberately left
+// out since it's different for every trip.
+function openCustomerPicker(onPick){
+  var old=document.getElementById('custPickModal');
+  if(old)old.remove();
+  var modal=document.createElement('div');
+  modal.id='custPickModal';
+  modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#0F1117EE;z-index:9999;display:flex;flex-direction:column;padding:16px;gap:10px';
+
+  var title=document.createElement('div');title.style.cssText='color:#D4A843;font-size:16px;font-weight:800;margin-top:40px';title.textContent='👤 Existing Customer પસંદ કરો';
+  var hint=document.createElement('div');hint.style.cssText='color:#8A8090;font-size:12px';hint.textContent='Name, Contact, Email auto-fill થશે — Destination ખાલી રહેશે';
+
+  var searchInput=document.createElement('input');
+  searchInput.className='inp';searchInput.placeholder='Search name or contact...';
+  searchInput.style.cssText='margin-bottom:4px';
+
+  var listWrap=document.createElement('div');listWrap.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px';
+
+  // Build unique customer list: latest booking per guestName wins (most
+  // recent contact/email), sorted by most recently updated first.
+  var byName={};
+  (APP.bookings||[]).forEach(function(bb){
+    if(!bb.guestName)return;
+    var key=bb.guestName.trim().toLowerCase();
+    if(!key)return;
+    var existing=byName[key];
+    if(!existing||new Date(bb.updatedAt||bb.createdAt||0)>new Date(existing.updatedAt||existing.createdAt||0)){
+      byName[key]=bb;
+    }
+  });
+  var customers=Object.values(byName).sort(function(a,bb){return new Date(bb.updatedAt||bb.createdAt||0)-new Date(a.updatedAt||a.createdAt||0);});
+
+  function render(filterText){
+    listWrap.innerHTML='';
+    var q=(filterText||'').toLowerCase();
+    var filtered=customers.filter(function(c){
+      return !q||(c.guestName||'').toLowerCase().indexOf(q)>=0||(c.contact||'').toLowerCase().indexOf(q)>=0;
+    });
+    if(!filtered.length){
+      var empty=document.createElement('div');empty.style.cssText='color:#8A8090;font-size:13px;text-align:center;padding:20px';empty.textContent='કોઈ customer મળ્યો નહીં';
+      listWrap.appendChild(empty);return;
+    }
+    filtered.forEach(function(c){
+      var custBookings=(APP.bookings||[]).filter(function(bb){return bb.guestName&&bb.guestName.trim().toLowerCase()===c.guestName.trim().toLowerCase();});
+      var card=document.createElement('div');
+      card.className='card';
+      var row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:8px';
+      var info=document.createElement('div');info.style.cssText='cursor:pointer;flex:1';
+      info.innerHTML='<div style="font-weight:700;font-size:14px">'+c.guestName+'</div>'
+        +'<div style="font-size:11px;color:#8A8090;margin-top:3px">'+(c.contact||'—')+(c.email?' &bull; '+c.email:'')+'</div>'
+        +'<div style="font-size:11px;color:#D4A843;margin-top:3px">કુલ '+custBookings.length+' booking'+(custBookings.length>1?'s':'')+'</div>';
+      info.addEventListener('click',function(){
+        onPick({guestName:c.guestName,contact:c.contact,email:c.email});
+        modal.remove();
+        toast('✅ '+c.guestName+' ની details fill થઈ ગઈ');
+      });
+      var histBtn=btn('📋 History','btn bm sm',function(){openGuestHistory(c.guestName);});
+      histBtn.style.cssText='flex-shrink:0';
+      row.appendChild(info);row.appendChild(histBtn);
+      card.appendChild(row);
+      listWrap.appendChild(card);
+    });
+  }
+  render('');
+  searchInput.addEventListener('input',function(){render(searchInput.value);});
+
+  var closeBtn=document.createElement('button');
+  closeBtn.className='btn bm';closeBtn.textContent='બંધ કરો';
+  closeBtn.addEventListener('click',function(){modal.remove();});
+
+  modal.appendChild(title);modal.appendChild(hint);modal.appendChild(searchInput);modal.appendChild(listWrap);modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+  setTimeout(function(){searchInput.focus();},300);
+}
+
+// ── GUEST HISTORY: show every past booking for one guest (no cap — all
+// bookings are listed, scrollable, so guests with 7+ trips are all
+// visible, newest first). Tapping an entry opens it in the booking form.
+function openGuestHistory(guestName){
+  var old=document.getElementById('custHistModal');
+  if(old)old.remove();
+  var modal=document.createElement('div');
+  modal.id='custHistModal';
+  modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#0F1117EE;z-index:10000;display:flex;flex-direction:column;padding:16px;gap:10px';
+
+  var title=document.createElement('div');title.style.cssText='color:#D4A843;font-size:16px;font-weight:800;margin-top:40px';title.textContent='📋 '+guestName+' — Booking History';
+
+  var list=(APP.bookings||[]).filter(function(bb){return bb.guestName&&bb.guestName.trim().toLowerCase()===guestName.trim().toLowerCase();})
+    .sort(function(a,b){return new Date(b.updatedAt||b.createdAt||0)-new Date(a.updatedAt||a.createdAt||0);});
+
+  var hint=document.createElement('div');hint.style.cssText='color:#8A8090;font-size:12px';hint.textContent='કુલ '+list.length+' booking'+(list.length>1?'s':'')+' મળી — કોઈપણ પર click કરી ખોલો';
+
+  var listWrap=document.createElement('div');listWrap.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px';
+
+  if(!list.length){
+    var empty=document.createElement('div');empty.style.cssText='color:#8A8090;font-size:13px;text-align:center;padding:20px';empty.textContent='કોઈ booking history મળી નહીં';
+    listWrap.appendChild(empty);
+  } else {
+    list.forEach(function(bk){
+      var c=calcOpt(bk,bk.selectedOption||1);
+      var sc=bk.status==='Confirmed'?'#2ECC71':bk.status==='Quotation'?'#3498DB':'#8A8090';
+      var card=document.createElement('div');
+      card.className='card';card.style.cursor='pointer';
+      card.innerHTML='<div class="row"><div><div style="font-weight:700;font-size:13px">'+(bk.quotNo||'—')+' &bull; '+(bk.destination||'—')+'</div>'
+        +'<div style="font-size:11px;color:#8A8090;margin-top:3px">'+(bk.createdAt||'—')+'</div></div>'
+        +'<div style="text-align:right"><div style="font-weight:900;font-size:14px;color:#D4A843">'+fmt(c.grandTotal)+'</div>'
+        +'<span class="badge" style="background:'+sc+'22;color:'+sc+'">'+bk.status+'</span></div></div>';
+      card.addEventListener('click',function(){
+        APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';
+        var custModal=document.getElementById('custPickModal');if(custModal)custModal.remove();
+        modal.remove();
+        go('form');
+      });
+      listWrap.appendChild(card);
+    });
+  }
+
+  var closeBtn=document.createElement('button');
+  closeBtn.className='btn bm';closeBtn.textContent='બંધ કરો';
+  closeBtn.addEventListener('click',function(){modal.remove();});
+
+  modal.appendChild(title);modal.appendChild(hint);modal.appendChild(listWrap);modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+}
+
+// ── IMPORT: paste JSON text and merge into local storage ─────
+function doImport(){
+  var old=document.getElementById('importModal');
+  if(old)old.remove();
+  var modal=document.createElement('div');
+  modal.id='importModal';
+  modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#0F1117EE;z-index:9999;display:flex;flex-direction:column;padding:16px;gap:10px';
+  var title=document.createElement('div');title.style.cssText='color:#D4A843;font-size:16px;font-weight:800;margin-top:40px';title.textContent='📥 Export કરેલો Text Paste કરો';
+  var hint=document.createElement('div');hint.style.cssText='color:#8A8090;font-size:12px';hint.textContent='Mobile Export થી copy કરેલો text અહીં paste કરો — data merge થઈ જશે';
+  var ta=document.createElement('textarea');
+  ta.style.cssText='flex:1;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:10px;font-size:11px;font-family:monospace';
+  ta.placeholder='અહીં paste કરો...';
+  var importBtn=document.createElement('button');
+  importBtn.className='btn gn';importBtn.textContent='✅ Import & Merge';
+  importBtn.addEventListener('click',function(){
+    try{
+      var raw=ta.value.trim();
+      var parsed=JSON.parse(raw);
+      var incoming=parsed.bookings||parsed;
+      if(!Array.isArray(incoming)){toast('Invalid data!',false);return;}
+      // Merge: newer updatedAt wins
+      var local=LS.g('bookings')||[];
+      var map={};
+      local.forEach(function(b){map[b.quotNo]=b;});
+      incoming.forEach(function(b){
+        if(!map[b.quotNo]||(new Date(b.updatedAt)>new Date(map[b.quotNo].updatedAt))){
+          map[b.quotNo]=b;
+        }
+      });
+      var merged=Object.values(map).sort(function(a,b){return new Date(b.updatedAt)-new Date(a.updatedAt);});
+      APP.bookings=merged;
+      LS.s('bookings',merged);
+      // If online, also sync to server
+      if(APP.online){
+        apiFetch('/api/bookings/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bookings:merged})})
+          .then(function(r){return r.json();})
+          .then(function(res){if(res.ok&&res.bookings){APP.bookings=res.bookings;LS.s('bookings',res.bookings);}});
+      }
+      modal.remove();
+      toast('✅ '+merged.length+' bookings import થઈ ગઈ!');
+      go('dash');
+    }catch(e){toast('Error: Invalid format',false);}
+  });
+  var closeBtn=document.createElement('button');
+  closeBtn.className='btn bm';closeBtn.textContent='બંધ કરો';
+  closeBtn.addEventListener('click',function(){modal.remove();});
+  modal.appendChild(title);modal.appendChild(hint);modal.appendChild(ta);modal.appendChild(importBtn);modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+}
+
+// ── INSTALL TO HOME SCREEN ───────────────────────────────────
+function installApp(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(r){
+      if(r.outcome==='accepted'){toast('✅ Home Screen પર add થઈ ગઈ!');}
+      deferredPrompt=null;
+      var btn=document.getElementById('installBtn');
+      if(btn)btn.style.display='none';
+    });
+  } else {
+    // Manual instructions
+    var modal=document.createElement('div');
+    modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#0F1117EE;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px';
+    var t=document.createElement('div');t.style.cssText='color:#D4A843;font-size:18px;font-weight:800;text-align:center';t.textContent='📲 Home Screen પર Add કરો';
+    var steps=['1️⃣  Chrome માં ⋮ (3 dots) tap કરો','2️⃣  "Add to Home screen" tap કરો','3️⃣  "Add" confirm કરો','✅ Home Screen પર Mishri CRM icon આવી જશે!'];
+    var sc=document.createElement('div');sc.style.cssText='background:#1A1D27;border-radius:12px;padding:16px;width:100%;max-width:340px';
+    steps.forEach(function(s){var d=document.createElement('div');d.style.cssText='color:#E8E0D0;font-size:14px;padding:10px 0;border-bottom:1px solid #2A2D3A44;line-height:1.5';d.textContent=s;sc.appendChild(d);});
+    var cb=document.createElement('button');cb.className='btn bg';cb.style.cssText='width:100%;max-width:340px';cb.textContent='સમજ્યો!';cb.addEventListener('click',function(){modal.remove();});
+    modal.appendChild(t);modal.appendChild(sc);modal.appendChild(cb);
+    document.body.appendChild(modal);
+  }
+}
+
+// Load hotels
+function loadHotels(){
+  if(APP.online){
+    return apiFetch('/api/hotels').then(function(r){return r.json();})
+      .then(function(list){APP.hotels=list;LS.s('hotels',list);return list;})
+      .catch(function(){APP.hotels=LS.g('hotels')||DEF_HOTELS;return APP.hotels;});
+  } else {
+    APP.hotels=LS.g('hotels')||DEF_HOTELS;
+    return Promise.resolve(APP.hotels);
+  }
+}
+
+function saveHotels(list){
+  APP.hotels=list; LS.s('hotels',list);
+  if(APP.online){apiFetch('/api/hotels/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(list)}).catch(function(){});}
+}
+
+// ── INIT: check server, load data ───────────────────────────
+function init(){
+  // Step 1: Request persistent storage (prevents browser from clearing data)
+  requestPersist();
+  // Step 2: Restore from IndexedDB into localStorage if localStorage was cleared
+  restoreFromIDB().then(function(){
+    // Step 3: Reload hotels from restored storage
+    APP.hotels=LS.g('hotels')||DEF_HOTELS;
+    // Step 4: Check server & load data
+    return checkServer();
+  }).then(function(){
+    return Promise.all([loadBookings(), loadHotels()]);
+  }).then(function(){
+    if(APP.online && APP.pendingSync) doSync();
+    else go('dash');
+    // Show restore notice if we recovered from IDB
+    idbGet('bookings').then(function(idbData){
+      var lsData=LS.g('bookings')||[];
+      if(idbData&&idbData.length>0&&lsData.length===0){
+        toast('🔄 Data recovered from backup!');
+      }
+    });
+    // Step 5: If desktop wasn't found via saved IP, try a one-time
+    // background network scan for zero-config pairing — doesn't block the UI.
+    if(!APP.online){
+      scanNetwork(false).then(function(found){
+        if(found){ doSync(true); }
+      });
+    }
+  }).catch(function(){
+    // Likely a 401 (expired/invalid token) — apiFetch already triggered
+    // the login screen, so there's nothing else to do here.
+  });
+}
+
+// ── PERIODIC BACKGROUND SYNC (every 20s while app is open) ───
+setInterval(function(){
+  var wasOnline=APP.online;
+  checkServer().then(function(isOnline){
+    if(isOnline){
+      if(!wasOnline)toast('🔗 Connected to desktop!');
+      doSync(true); // silent — keeps mobile & desktop continuously in sync
+    } else if(!wasOnline){
+      // still offline — occasionally retry a full network scan in the background
+      scanNetwork(false);
+    }
+  });
+}, 20000);
+
+// ── INSTANT RE-SYNC WHEN APP COMES BACK TO FOREGROUND ────────
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='visible'){
+    checkServer().then(function(isOnline){ if(isOnline) doSync(true); });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  DOM HELPERS
+// ════════════════════════════════════════════════════════════
+function el(tag){return document.createElement(tag);}
+function div(css,html){var d=el('div');if(css)d.style.cssText=css;if(html)d.innerHTML=html;return d;}
+function inp(val,setter,type,ph){
+  var i=el('input');i.className='inp';i.type=type||'text';
+  i.value=(val!==undefined&&val!==null)?String(val):'';
+  if(ph)i.placeholder=ph;
+  // Bug fix: commit the value on every keystroke (not just on 'change'/blur).
+  // Previously the value was only saved to the booking object on 'change', which only
+  // fires once the field loses focus. Tapping "Save" while a field was still focused
+  // (very common on mobile) would just blur the field on the first tap without
+  // reaching the Save button — so the user had to tap Save a second time before the
+  // data actually got written. Using 'input' means the latest value is always already
+  // on the object by the time Save is tapped, so a single tap saves correctly.
+  i.addEventListener('input',function(){var v=i.value;if(type==='number')v=parseFloat(v)||0;setter(v);});
+  return i;
+}
+function sel(val,opts,setter){
+  var s=el('select');s.className='sel';
+  opts.forEach(function(o){var op=el('option');op.value=o.v!==undefined?o.v:o;op.textContent=o.l!==undefined?o.l:o;if(String(op.value)===String(val))op.selected=true;s.appendChild(op);});
+  s.addEventListener('change',function(){setter(s.value);});return s;
+}
+function fld(lbl,inputEl){
+  var d=el('div');d.className='fld';
+  if(lbl){var lb=el('label');lb.className='lbl';lb.textContent=lbl;d.appendChild(lb);}
+  d.appendChild(inputEl);return d;
+}
+function btn(txt,cls,fn){var b=el('button');b.className='btn '+cls;b.textContent=txt;if(fn)b.addEventListener('click',fn);return b;}
+function g2(items){var g=el('div');g.className='g2';items.forEach(function(i){g.appendChild(i);});return g;}
+
+// ── NAVIGATION ──────────────────────────────────────────────
+function go(page){
+  APP.page=page;
+  document.querySelectorAll('.ni').forEach(function(b){b.classList.toggle('on',b.dataset.p===page||(page==='form'&&b.dataset.p==='list'));});
+  var c=document.getElementById('content');c.innerHTML='';c.scrollTop=0;
+  if(page==='dash') loadBookings().then(function(){c.innerHTML='';c.appendChild(bDash());});
+  else if(page==='list') loadBookings().then(function(){c.innerHTML='';c.appendChild(bList());});
+  else if(page==='form') c.appendChild(bForm());
+  else if(page==='hotels') loadHotels().then(function(){c.innerHTML='';c.appendChild(bHotels());});
+  else if(page==='sync') c.appendChild(bSyncPage());
+}
+
+document.querySelectorAll('.ni').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.p);});});
+document.getElementById('hdrNew').addEventListener('click',function(){APP.edit=newBk();APP.ftab='guest';go('form');});
+document.getElementById('syncBtn').addEventListener('click',doSync);
+
+// ════════════════════════════════════════════════════════════
+//  PDF GENERATORS
+// ════════════════════════════════════════════════════════════
+function openPrint(html,filename){
+  filename=filename||'Mishri_Document';
+  var baseName=filename.replace('.pdf','').replace('.html','');
+
+  // Create preview overlay
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:#000d;z-index:9999;display:flex;flex-direction:column';
+
+  // Top bar
+  var topBar=document.createElement('div');
+  topBar.style.cssText='background:#1A1D27;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid #2A2D3A';
+
+  // Close function
+  function closeOverlay(){ document.body.removeChild(overlay); }
+
+  // Back button (big, left side)
+  var backBtn=document.createElement('button');
+  backBtn.className='btn bm sm';
+  backBtn.innerHTML='&#8592; Back';
+  backBtn.style.cssText='border-radius:16px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#8A8090;border:1.5px solid #8A8090;flex-shrink:0';
+  backBtn.addEventListener('click',closeOverlay);
+
+  var titleEl=document.createElement('div');
+  titleEl.style.cssText='color:#D4A843;font-weight:700;font-size:12px;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px';
+  titleEl.textContent=baseName;
+
+  var btnRow=document.createElement('div');
+  btnRow.style.cssText='display:flex;gap:6px;flex-shrink:0';
+
+  // Download PDF button
+  var dlBtn=document.createElement('button');
+  dlBtn.style.cssText='border-radius:16px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;background:#D4A843;color:#1a1d27;border:1.5px solid #D4A843';
+  dlBtn.textContent='⬇ Save';
+  dlBtn.addEventListener('click',function(){
+    var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download=baseName+'.html';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},3000);
+    toast('Downloaded! Open in browser → Save as PDF');
+  });
+
+  // Print button
+  var prBtn=document.createElement('button');
+  prBtn.style.cssText='border-radius:16px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#D4A843;border:1.5px solid #D4A843';
+  prBtn.textContent='🖨';
+  prBtn.addEventListener('click',function(){
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  });
+
+  btnRow.appendChild(dlBtn);
+  btnRow.appendChild(prBtn);
+  topBar.appendChild(backBtn);
+  topBar.appendChild(titleEl);
+  topBar.appendChild(btnRow);
+  overlay.appendChild(topBar);
+
+  // iframe preview
+  var iframe=document.createElement('iframe');
+  iframe.style.cssText='flex:1;border:none;background:#fff';
+  overlay.appendChild(iframe);
+
+  document.body.appendChild(overlay);
+
+  // Write HTML into iframe
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+}
+
+function makeQuot(b,on){
+  var c=calcOpt(b,on),opt=b['opt'+on]||[];
+  var hotels=opt.filter(function(h){return h.hotelName&&h.checkIn&&h.checkOut;});
+  var vehs=(b.vehicles||[]).filter(function(v){return v.type||v.cost>0;});
+  var inc=(b.inclusions||[]).filter(Boolean);
+  var exc=(b.exclusions||[]).filter(Boolean);
+
+  // Hotel rows - Destination | Hotel & Room | Meal | Rooms format (like PDF)
+  var destMap={};
+  hotels.forEach(function(h){
+    var n=nts(h.checkIn,h.checkOut);
+    var key=h.place+'___'+n;
+    if(!destMap[key]) destMap[key]={place:h.place,nights:n,hotels:[],checkIn:h.checkIn,checkOut:h.checkOut};
+    destMap[key].hotels.push(h);
+  });
+
+  var hotelRows='';
+  hotels.forEach(function(h){
+    var n=nts(h.checkIn,h.checkOut);
+    var extraBits=[];
+    if(parseInt(h.extraAdults)>0)extraBits.push('Extra Adult: '+h.extraAdults);
+    if(parseInt(h.extraMattress)>0)extraBits.push('Extra Mattress: '+h.extraMattress);
+    if(parseInt(h.chargeableChild)>0)extraBits.push('Chargeable Child: '+h.chargeableChild);
+    var extraNote=extraBits.length?'<br><span style="font-size:8.5px;color:#8B4513">'+extraBits.join(' &bull; ')+'</span>':'';
+    // Bug fix (2): show Room Category clearly plus Check-in / Check-out dates
+    hotelRows+='<tr>'
+      +'<td style="font-weight:600;color:#1a1d27">'+h.place+' — '+n+'N</td>'
+      +'<td>'+h.hotelName+'<br><span style="font-size:9px;color:#666">'+(h.roomCat||'—')+'</span>'+extraNote+'</td>'
+      +'<td style="text-align:center">'+fmtD(h.checkIn)+'</td>'
+      +'<td style="text-align:center">'+fmtD(h.checkOut)+'</td>'
+      +'<td style="text-align:center">'+mealLabel(h.mealPlan)+'</td>'
+      +'<td style="text-align:center">'+h.rooms+'</td>'
+      +'</tr>';
+  });
+
+  // Vehicle section
+  var vehSection='';
+  if(vehs.length>0){
+    var vehRows=vehs.map(function(v){
+      return '<li style="padding:3px 0;font-size:10px">'+v.type+(v.from?' — '+v.from:'')+(v.to?' to '+v.to:'')+'</li>';
+    }).join('');
+    vehSection='<div style="margin-top:6px;font-size:10px"><b style="color:#1a1d27">Vehicle:</b> '+vehs.map(function(v){return v.type;}).join(', ')+'</div>'
+      +'<ul style="padding-left:15px;margin-top:4px">'+vehRows+'</ul>';
+  }
+
+  // Cost card data comes directly from calcOpt() below — no separate table rows needed.
+
+  // Itinerary rows
+  var itrRows='';
+  if(b.itinerary&&b.itinerary.some(function(d){return d;})){
+    b.itinerary.forEach(function(d,i){
+      if(!d) return;
+      itrRows+='<p style="margin-bottom:8px"><b style="color:#D4A843">Day '+(i+1)+' — </b>'+d+'</p>';
+    });
+  }
+
+  // Inclusions & Exclusions
+  var incHTML=inc.map(function(x){return '<li style="padding:2px 0;font-size:9.5px;color:#1a6b3c">'+x+'</li>';}).join('');
+  var excHTML=exc.map(function(x){return '<li style="padding:2px 0;font-size:9.5px;color:#c0392b">'+x+'</li>';}).join('');
+
+  // Bug fix (3): Removed the auto-generated "Houseboat Cruise Itinerary" block that
+  // used to appear by default whenever a hotel name contained "houseboat" — it
+  // inserted hardcoded timings the user never entered. Real itinerary details should
+  // be added by the user on the Itinerary tab instead.
+  var houseboatNote='';
+
+  var dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+  var travelDate=b.startDate?fmtD(b.startDate):'As per discussion';
+  var duration=hotels.length>0?(function(){
+    var totalNights=0;hotels.forEach(function(h){totalNights+=nts(h.checkIn,h.checkOut);});
+    return (totalNights+1)+' Days / '+totalNights+' Nights';
+  })():'—';
+  var pickup=b.destination?'As per itinerary':'—';
+  var childNote=(c.chargeableChild>0?'Package costed for '+c.adults+' Adults + '+c.chargeableChild+' Child. Children below 5 yrs travel complimentary without extra mattress.':'Package costed for '+c.adults+' Adults.')+(c.maxExtraMattress>0?' Incl. '+c.maxExtraMattress+' Extra Mattress.':'')+(c.gstPct>0?' GST @ '+c.gstPct+'% included in total.':' GST not applicable / not included.');
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
+    +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm}'
+    +'.logo-bar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px}'
+    +'.logo-name{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:26px;font-weight:900;color:#B8892F;letter-spacing:0.3px}'
+    +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8.5px;color:#999;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase}'
+    +'.tagline{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:11px;color:#999}'
+    +'.divider-gold{border:none;border-top:2.5px solid #D4A843;margin:6px 0 10px}'
+    +'.title-block{text-align:center;margin-bottom:12px}'
+    +'.main-title{font-family:"Playfair Display",Georgia,serif;font-size:24px;font-weight:900;color:#1a1d27;letter-spacing:1.5px}'
+    +'.sub-title{font-family:"Poppins",sans-serif;font-size:11.5px;color:#B8892F;font-weight:600;margin-top:4px;letter-spacing:0.4px}'
+    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
+    +'.info-row{display:contents}'
+    +'.info-label{background:#1a1d27;color:#D4A843;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #333;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;color:#1a1d27;font-weight:500}'
+    +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
+    +'table{width:100%;border-collapse:collapse}'
+    +'th{background:#1a1d27;color:#D4A843;padding:7px 8px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase}'
+    +'td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:middle;font-size:10.5px;font-weight:400}'
+    +'tr:nth-child(even) td{background:#fafafa}'
+    +'.cost-table{border:1.5px solid #D4A843;border-radius:6px;overflow:hidden;margin:10px 0}'
+    +'.cost-table th{background:#1a1d27;font-size:10px}'
+    +'.cost-table td{font-size:11px;padding:8px}'
+    +'.summary-box{background:linear-gradient(135deg,#fff8e0,#fef3c7);border:2px solid #D4A843;border-radius:8px;padding:14px;margin:12px 0;text-align:center}'
+    +'.cost-note{font-size:9px;color:#777;font-style:italic;margin-top:8px}'
+    +'.ie-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}'
+    +'.section-head{font-family:"Poppins",sans-serif;font-weight:700;font-size:10px;margin-bottom:6px;padding-bottom:3px;border-bottom:1.5px solid currentColor;letter-spacing:0.5px;text-transform:uppercase}'
+    +'ul.inc-list{padding-left:14px} ul.inc-list li{color:#1a6b3c;font-size:9.5px;padding:2px 0}'
+    +'ul.exc-list{padding-left:14px} ul.exc-list li{color:#c0392b;font-size:9.5px;padding:2px 0}'
+    +'.terms{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:10px 12px;margin-top:10px}'
+    +'.terms-title{font-family:"Poppins",sans-serif;font-weight:700;font-size:10px;color:#1a1d27;margin-bottom:6px;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.terms ul{padding-left:14px} .terms li{font-size:9px;color:#666;padding:2px 0}'
+    +'.footer{border-top:2.5px solid #D4A843;margin-top:16px;padding-top:10px;display:flex;justify-content:space-between;align-items:center}'
+    +'.footer-brand{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:13px;font-weight:700;color:#1a1d27}'
+    +'.footer-contact{font-size:9.5px;color:#666}'
+    +'.footer-note{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:9.5px;color:#999}'
+    +'@media print{.page{padding:6mm 10mm}}'
+    +'</style></head><body><div class="page">'
+
+    // Logo bar
+    +'<div class="logo-bar">'
+    +'<div><div class="logo-name">&#9992; Mishri Holidays</div><div class="logo-sub">your holiday planner</div></div>'
+    +'<div class="tagline">Your Trusted Travel Partner</div>'
+    +'</div>'
+    +'<hr class="divider-gold">'
+
+    // Title
+    +'<div class="title-block">'
+    +'<div class="main-title">'+( b.destination ? b.destination.toUpperCase() : 'HOLIDAY' )+' QUOTATION</div>'
+    +(hotels.length>0?'<div class="sub-title">'+hotels.map(function(h){return h.place+(nts(h.checkIn,h.checkOut)>0?' ('+nts(h.checkIn,h.checkOut)+'N)':'');}).join(' &bull; ')+'</div>':'')
+    +'</div>'
+
+    // Guest info grid
+    +'<div class="info-grid">'
+    +'<div class="info-label">Guest Name</div><div class="info-value"><b>'+b.guestName+'</b></div>'
+    +'<div class="info-label">Date of Travel</div><div class="info-value">'+travelDate+'</div>'
+    +'<div class="info-label">Pickup / Drop</div><div class="info-value">'+( b.destination||'As per itinerary' )+'</div>'
+    +'<div class="info-label">Duration</div><div class="info-value">'+duration+'</div>'
+    +'<div class="info-label">Quotation No.</div><div class="info-value">'+b.quotNo+'</div>'
+    +'<div class="info-label">Issue Date</div><div class="info-value">'+dateStr+'</div>'
+    +'</div>'
+
+    // Vehicle details
+    +(vehs.length>0?
+      '<div class="section-title">VEHICLE DETAILS</div>'
+      +'<ul style="padding-left:16px">'
+      +vehs.map(function(v){return '<li style="font-size:10px;padding:3px 0">'+v.type+(v.from?' — '+v.from:'')+(v.to?' to '+v.to:'')+'</li>';}).join('')
+      +'<li style="font-size:10px;padding:3px 0;color:#666">650 kms included in package; any usage beyond to be paid directly to driver</li>'
+      +'</ul>'
+      :'')
+
+    // Hotel & Accommodation
+    +(hotelRows?
+      '<div class="section-title">HOTEL &amp; ACCOMMODATION DETAILS</div>'
+      +'<table><tr><th>Destination</th><th>Hotel &amp; Room Category</th><th style="text-align:center">Check-In</th><th style="text-align:center">Check-Out</th><th style="text-align:center">Meal Plan</th><th style="text-align:center">Rooms</th></tr>'
+      +hotelRows
+      +'</table>'
+      :'')
+
+    // Houseboat note if applicable
+    +houseboatNote
+
+    // Package cost — decorative price card (big number) instead of a plain table
+    +'<div class="section-title">TOUR COST</div>'
+    +'<div style="border:2px solid #D4A843;border-radius:10px;overflow:hidden;max-width:320px;margin:0 auto 4px">'
+    +'<div style="background:#1a1d27;color:#D4A843;padding:6px 12px;font-weight:800;font-size:10px;letter-spacing:0.5px;text-align:center">'+vehicleTypeLabel(vehs)+'</div>'
+    +'<div style="padding:14px 12px;text-align:center;background:linear-gradient(135deg,#fff8e0,#fef3c7)">'
+    +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
+    +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:26px;font-weight:900;color:#B8892F;margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:12px;font-weight:600"> / person</span></div>'
+    +(c.chargeableChild>0?'<div style="font-size:10px;color:#8B4513;margin-top:4px">+ '+fmt(c.perChild)+'/- per Child &times; '+c.chargeableChild+'</div>':'')
+    +'<div style="font-size:10px;color:#555;margin-top:6px;border-top:1px dashed #D4A84388;padding-top:6px">Total Package: <b style="color:#1a1d27">'+fmt(c.grandTotal)+'/-</b></div>'
+    +'</div></div>'
+    +'<p class="cost-note" style="text-align:center"><i>'+childNote+'</i></p>'
+
+    // Itinerary
+    +(itrRows?
+      '<div class="section-title">DAY-WISE ITINERARY</div>'
+      +'<div style="padding:4px 2px">'+itrRows+'</div>'
+      :'')
+
+    // Inclusions & Exclusions
+    +'<div class="section-title">INCLUSIONS &amp; EXCLUSIONS</div>'
+    +'<div class="ie-grid">'
+    +'<div><div class="section-head" style="color:#1a6b3c">&#10003; INCLUSIONS</div><ul class="inc-list">'+incHTML+'</ul></div>'
+    +'<div><div class="section-head" style="color:#c0392b">&#10007; EXCLUSIONS</div><ul class="exc-list">'+excHTML+'</ul></div>'
+    +'</div>'
+
+    // Terms & Conditions
+    +'<div class="terms"><div class="terms-title">Terms &amp; Conditions</div>'
+    +'<ul>'
+    +'<li>Rates are subject to availability at time of confirmation and may change without prior notice</li>'
+    +'<li>A booking advance is required to confirm hotels and vehicle; balance payable as per company policy</li>'
+    +'<li>Standard hotel check-in/check-out time applies; early check-in or late check-out subject to availability</li>'
+    +'<li>AC in vehicle will not function in hilly/ghat areas or while vehicle is stationary</li>'
+    +'<li>Cancellation charges apply as per policy of respective hotels and operators</li>'
+    +'<li>This quotation is valid for 7 days from date of issue</li>'
+    +'</ul></div>'
+
+    // Footer
+    +'<div class="footer">'
+    +'<div>'
+    +'<div class="footer-brand">&#9992; Mishri Holidays</div>'
+    +'<div class="footer-contact">+91 99981 47184 / +91 79909 17434</div>'
+    +'</div>'
+    +'<div style="text-align:center">'
+    +'<div style="font-size:11px;font-weight:700;color:#D4A843;font-style:italic">We look forward to making your holiday a memorable one!</div>'
+    +'</div>'
+    +'<div style="text-align:right"><div class="footer-note">Your Trusted Travel Partner</div></div>'
+    +'</div>'
+
+    +'</div></body></html>';
+}
+
+function makeMultiQuot(b, options){
+  // Bug fix (1): quotation should just show "OPTION 1 / 2 / 3" — no Budget/Standard/Premium label
+  var cols={1:'#1a7a3c',2:'#1a4a7a',3:'#7a3a0a'};
+  var bgcols={1:'#e8f8ee',2:'#e8f0fb',3:'#fdf0e0'};
+  var inc=(b.inclusions||[]).filter(Boolean);
+  var exc=(b.exclusions||[]).filter(Boolean);
+  var incHTML=inc.map(function(x){return '<li style="padding:2px 0;font-size:9.5px;color:#1a6b3c">'+x+'</li>';}).join('');
+  var excHTML=exc.map(function(x){return '<li style="padding:2px 0;font-size:9.5px;color:#c0392b">'+x+'</li>';}).join('');
+
+  var allHotels=[];
+  options.forEach(function(on){(b['opt'+on]||[]).forEach(function(h){if(h.hotelName&&h.checkIn&&h.checkOut)allHotels.push(h);});});
+  // Bug fix (3): removed auto-generated "Houseboat Cruise Itinerary" block — see makeQuot for details.
+
+  var optLabels={1:'OPTION 1',2:'OPTION 2',3:'OPTION 3'};
+  var icons={1:'&#129352;',2:'&#129351;',3:'&#129353;'}; // 3rd/2nd/1st place medals reused just as a colour-coded badge, not a ranking
+  var combinedHotelRows='';
+  var priceCards='';
+  options.forEach(function(on){
+    var c=calcOpt(b,on);
+    var opt=b['opt'+on]||[];
+    var hotels=opt.filter(function(h){return h.hotelName&&h.checkIn&&h.checkOut;});
+    var vehs=(b.vehicles||[]).filter(function(v){return v.type||v.cost>0;});
+
+    // One row per hotel, in the SAME unified table — with an Option badge in the
+    // first column — instead of a separate hotel table for every option.
+    hotels.forEach(function(h,hi){
+      var n=nts(h.checkIn,h.checkOut);
+      combinedHotelRows+='<tr>'
+        +(hi===0?'<td rowspan="'+hotels.length+'" style="text-align:center;vertical-align:middle;background:'+bgcols[on]+'"><span style="display:inline-block;padding:3px 9px;border-radius:10px;background:'+cols[on]+';color:#fff;font-weight:800;font-size:9px;letter-spacing:0.4px">OPT '+on+'</span></td>':'')
+        +'<td style="font-weight:600">'+(h.place||'—')+'</td>'
+        +'<td>'+h.hotelName+'<br><span style="font-size:9px;color:#666">'+(h.roomCat||'—')+'</span></td>'
+        +'<td style="text-align:center">'+fmtD(h.checkIn)+'</td>'
+        +'<td style="text-align:center">'+fmtD(h.checkOut)+'</td>'
+        +'<td style="text-align:center">'+h.rooms+'</td>'
+        +'<td style="text-align:center">'+(parseInt(h.extraMattress)>0?h.extraMattress:'—')+'</td>'
+        +'<td style="text-align:center">'+mealLabel(h.mealPlan)+'</td>'
+        +'</tr>';
+      if(hi>0 && n){/* nights not separately shown here — already implied by dates */}
+    });
+
+    // Decorative price card per option — big number, small caption, like a
+    // proper "Tour Cost" quote instead of a dense multi-column price table.
+    var hotelNamesForCard=hotels.map(function(h){return h.hotelName;}).join(', ')||'—';
+    priceCards+='<div style="flex:1;min-width:0;border:2px solid '+cols[on]+';border-radius:10px;overflow:hidden;background:'+bgcols[on]+'">'
+      +'<div style="background:'+cols[on]+';color:#fff;padding:6px 12px;font-weight:800;font-size:10.5px;letter-spacing:0.5px">OPTION '+on+' — '+hotelNamesForCard+'</div>'
+      +'<div style="padding:14px 12px;text-align:center">'
+      +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
+      +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:22px;font-weight:900;color:'+cols[on]+';margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:11px;font-weight:600"> / person</span></div>'
+      +(c.chargeableChild>0?'<div style="font-size:9.5px;color:#8B4513;margin-top:4px">+ '+fmt(c.perChild)+'/- per Child &times; '+c.chargeableChild+'</div>':'')
+      +'<div style="font-size:9.5px;color:#555;margin-top:6px;border-top:1px dashed '+cols[on]+'66;padding-top:6px">Total Package: <b style="color:#1a1d27">'+fmt(c.grandTotal)+'/-</b></div>'
+      +(c.maxExtraMattress>0?'<div style="font-size:8.5px;color:#8B4513;margin-top:3px">Incl. '+c.maxExtraMattress+' Extra Mattress</div>':'')
+      +'<div style="font-size:8.5px;color:#888;margin-top:3px">Vehicle: '+vehicleTypeLabel(vehs)+'</div>'
+      +'</div></div>';
+  });
+
+  var itrRows='';
+  if(b.itinerary&&b.itinerary.some(function(d){return d;})){
+    b.itinerary.forEach(function(d,i){
+      if(d) itrRows+='<p style="margin-bottom:8px"><b style="color:#D4A843">Day '+(i+1)+' — </b>'+d+'</p>';
+    });
+  }
+
+  var allHotelsFlat=[];
+  options.forEach(function(on){(b['opt'+on]||[]).forEach(function(h){if(h.hotelName&&h.checkIn&&h.checkOut&&allHotelsFlat.indexOf(h.place)<0)allHotelsFlat.push(h.place);});});
+  var totalNights=0;
+  var opt1hotels=(b['opt'+options[0]]||[]).filter(function(h){return h.hotelName&&h.checkIn&&h.checkOut;});
+  opt1hotels.forEach(function(h){totalNights+=nts(h.checkIn,h.checkOut);});
+  var duration=totalNights>0?(totalNights+1)+' Days / '+totalNights+' Nights':'—';
+  var travelDate=b.startDate?fmtD(b.startDate):'As per discussion';
+  var dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
+    +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm}'
+    +'.logo-bar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px}'
+    +'.logo-name{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:26px;font-weight:900;color:#B8892F;letter-spacing:0.3px}'
+    +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8.5px;color:#999;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase}'
+    +'.divider-gold{border:none;border-top:2.5px solid #D4A843;margin:6px 0 10px}'
+    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
+    +'.info-label{background:#1a1d27;color:#D4A843;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #333;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;font-weight:500;color:#1a1d27}'
+    +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
+    +'table{width:100%;border-collapse:collapse}'
+    +'th{background:#1a1d27;color:#D4A843;padding:7px 8px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase}'
+    +'td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:middle;font-size:10.5px}'
+    +'tr:nth-child(even) td{background:#fafafa}'
+    +'.ie-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}'
+    +'.section-head{font-family:"Poppins",sans-serif;font-weight:700;font-size:10px;margin-bottom:6px;padding-bottom:3px;border-bottom:1.5px solid currentColor;letter-spacing:0.5px;text-transform:uppercase}'
+    +'ul.inc-list{padding-left:14px} ul.inc-list li{color:#1a6b3c;font-size:9.5px;padding:2px 0}'
+    +'ul.exc-list{padding-left:14px} ul.exc-list li{color:#c0392b;font-size:9.5px;padding:2px 0}'
+    +'.terms{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:10px 12px;margin-top:10px}'
+    +'.terms li{font-size:9px;color:#666;padding:2px 0}'
+    +'.footer{border-top:2.5px solid #D4A843;margin-top:16px;padding-top:10px;display:flex;justify-content:space-between;align-items:center}'
+    +'@media print{.page{padding:6mm 10mm}}'
+    +'</style></head><body><div class="page">'
+    +'<div class="logo-bar"><div><div class="logo-name">&#9992; Mishri Holidays</div><div class="logo-sub">your holiday planner</div></div><div style="font-family:\'Playfair Display\',Georgia,serif;font-style:italic;font-size:11px;color:#999">Your Trusted Travel Partner</div></div>'
+    +'<hr class="divider-gold">'
+    +'<div style="text-align:center;margin-bottom:12px">'
+    +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:24px;font-weight:900;color:#1a1d27;letter-spacing:1.5px">'+(b.destination?b.destination.toUpperCase():'HOLIDAY')+' QUOTATION</div>'
+    +(allHotelsFlat.length>0?'<div style="font-size:11.5px;color:#B8892F;font-weight:600;margin-top:4px;letter-spacing:0.4px">'+allHotelsFlat.join(' &bull; ')+'</div>':'')
+    +'</div>'
+    +'<div class="info-grid">'
+    +'<div class="info-label">Guest Name</div><div class="info-value"><b>'+b.guestName+'</b></div>'
+    +'<div class="info-label">Date of Travel</div><div class="info-value">'+travelDate+'</div>'
+    +'<div class="info-label">Adults / Children</div><div class="info-value">'+b.adults+' Adults'+(b.children>0?' / '+b.children+' Children':'')+'</div>'
+    +'<div class="info-label">Duration</div><div class="info-value">'+duration+'</div>'
+    +'<div class="info-label">Quotation No.</div><div class="info-value">'+b.quotNo+'</div>'
+    +'<div class="info-label">Issue Date</div><div class="info-value">'+dateStr+'</div>'
+    +'</div>'
+    +'<div class="section-title">HOTEL OPTIONS</div>'
+    +(combinedHotelRows?'<table style="margin-bottom:14px"><tr><th style="text-align:center">Option</th><th>Destination</th><th>Hotel &amp; Room Category</th><th style="text-align:center">Check-In</th><th style="text-align:center">Check-Out</th><th style="text-align:center">Rooms</th><th style="text-align:center">Ex. Mattress</th><th style="text-align:center">Meal Plan</th></tr>'+combinedHotelRows+'</table>':'')
+    +'<div class="section-title">TOUR COST</div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:6px">'+priceCards+'</div>'
+    +'<p class="cost-note" style="margin-bottom:10px"><i>'+(b.gstPct1>0||b.gstPct2>0||b.gstPct3>0?'GST included where applicable — see individual option cards above.':'GST not applicable / not included unless specified above.')+'</i></p>'
+    +(itrRows?'<div class="section-title">DAY-WISE ITINERARY</div><div style="padding:4px 2px">'+itrRows+'</div>':'')
+    +'<div class="section-title">INCLUSIONS &amp; EXCLUSIONS</div>'
+    +'<div class="ie-grid"><div><div class="section-head" style="color:#1a6b3c">&#10003; INCLUSIONS</div><ul class="inc-list">'+incHTML+'</ul></div>'
+    +'<div><div class="section-head" style="color:#c0392b">&#10007; EXCLUSIONS</div><ul class="exc-list">'+excHTML+'</ul></div></div>'
+    +'<div class="terms"><b style="font-size:10px;color:#1a1d27">Terms &amp; Conditions</b>'
+    +'<ul style="padding-left:14px;margin-top:6px"><li>Rates subject to availability and may change without prior notice</li><li>Booking advance required to confirm hotels and vehicle; balance as per company policy</li><li>AC in vehicle will not function on hilly/ghat sections or while stationary</li><li>Cancellation charges apply as per hotel and operator policy</li><li>This quotation is valid for 7 days from date of issue</li></ul></div>'
+    +'<div class="footer"><div><div style="font-family:\'Playfair Display\',Georgia,serif;font-style:italic;font-size:13px;font-weight:700;color:#1a1d27">&#9992; Mishri Holidays</div><div style="font-size:9.5px;color:#666">+91 99981 47184 / +91 79909 17434</div></div>'
+    +'<div style="font-size:11px;font-weight:700;color:#D4A843;font-style:italic">We look forward to making your holiday a memorable one!</div>'
+    +'<div style="font-size:9px;color:#888;font-style:italic">Your Trusted Travel Partner</div></div>'
+    +'</div></body></html>';
+}
+
+function makeVouch(b){
+  var on=b.selectedOption||1,c=calcOpt(b,on);
+  var hotels=(b['opt'+on]||[]).filter(function(h){return h.hotelName&&h.checkIn;});
+  // Bug fix (2): a vehicle slot only counts as a real vehicle if it has a Type entered.
+  // Previously any slot with just a Pick-Up/Drop value (even without a vehicle type)
+  // was treated as a separate vehicle, causing a duplicate/blank row with repeated
+  // Pick-Up & Drop info in the voucher.
+  var vehs=(b.vehicles||[]).filter(function(v){return v.type;});
+  var hr='',vr='',ir='';
+  hotels.forEach(function(h){
+    // Bug fix (1): show per-hotel Confirmation No., Address and Contact Number
+    var hotelSub=[];
+    if(h.confirmNo) hotelSub.push('Conf. No: '+h.confirmNo);
+    if(h.phone) hotelSub.push('\u260E '+h.phone);
+    var hotelSubHtml=hotelSub.length?'<br><span style="font-size:8.5px;color:#666">'+hotelSub.join(' &bull; ')+'</span>':'';
+    var placeHtml=h.place+(h.address?'<br><span style="font-size:8.5px;color:#666">'+h.address+'</span>':'');
+    // Bug fix (5): show Check-in / Check-out TIME alongside the date
+    var checkInHtml=fmtD(h.checkIn)+(h.checkInTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkInTime)+'</span>':'');
+    var checkOutHtml=fmtD(h.checkOut)+(h.checkOutTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkOutTime)+'</span>':'');
+    hr+='<tr><td><b>'+h.hotelName+'</b>'+hotelSubHtml+'</td><td>'+placeHtml+'</td><td>'+checkInHtml+'</td><td>'+checkOutHtml+'</td><td>'+nts(h.checkIn,h.checkOut)+'</td><td>'+mealLabel(h.mealPlan)+'</td></tr>';
+  });
+  // Bug fix (2): show the Vehicle / Cab Number alongside the vehicle type
+  vehs.forEach(function(v){vr+='<tr><td>'+v.type+'</td><td>'+(v.vehicleNo||'\u2014')+'</td><td>'+v.from+'</td><td>'+v.to+'</td></tr>';});
+  (b.itinerary||[]).forEach(function(d,i){if(d)ir+='<tr><td style="font-weight:bold;background:#f5f5f5;white-space:nowrap;font-size:10px">Day '+(i+1)+'</td><td>'+d+'</td></tr>';});
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10.5px;color:#333}.pg{padding:8mm 12mm}.hd{background:#1a1d27;color:#fff;padding:12px 16px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.lo{font-size:16px;font-weight:900;color:#D4A843}.st{background:#D4A843;color:#1a1d27;padding:3px 9px;font-weight:bold;font-size:10px;border-radius:3px;margin:10px 0 6px;display:inline-block}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.ir{display:flex;gap:4px;margin-bottom:2px}.lb{font-weight:bold;min-width:110px;color:#555;font-size:10px}.vl{font-size:10px}table{width:100%;border-collapse:collapse}th{background:#2c2c3e;color:#D4A843;padding:5px 6px;font-size:9px;text-align:left}td{padding:4px 6px;border:1px solid #e5e5e5;font-size:10px}.imp{background:#fff3cd;border:1px solid #D4A843;border-radius:3px;padding:8px;margin:10px 0;font-size:10px}.ft{margin-top:14px;border-top:1px solid #D4A843;padding-top:8px;text-align:center;font-size:9px;color:#666}@media print{.pg{padding:5mm 8mm}}</style></head><body><div class="pg"><div class="hd"><div><div class="lo">&#9992; MISHRI HOLIDAYS</div><div style="font-size:9px;color:#ccc">Travel Voucher &mdash; Confirmed Booking</div></div><div style="background:#D4A843;color:#1a1d27;padding:5px 14px;border-radius:4px;font-weight:bold;font-size:13px">VOUCHER</div></div><div class="g2"><div><div class="st">BOOKING</div><div class="ir"><span class="lb">Ref No.:</span><span class="vl"><b>'+(b.bookingRef||b.quotNo)+'</b></span></div><div class="ir"><span class="lb">Booking Date:</span><span class="vl">'+fmtD(b.bookingDate)+'</span></div><div class="ir"><span class="lb">Tour Start:</span><span class="vl">'+fmtD(b.startDate)+'</span></div><div class="ir"><span class="lb">Tour End:</span><span class="vl">'+fmtD(b.endDate)+'</span></div><div class="ir"><span class="lb">Destination:</span><span class="vl">'+b.destination+'</span></div></div><div><div class="st">GUEST</div><div class="ir"><span class="lb">Name:</span><span class="vl"><b>'+b.guestName+'</b></span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+b.contact+'</span></div><div class="ir"><span class="lb">Adults/Children:</span><span class="vl">'+b.adults+'/'+b.children+'</span></div><div class="ir"><span class="lb">Rooms:</span><span class="vl">'+b.rooms+'</span></div>'+(c.maxExtraMattress>0?'<div class="ir"><span class="lb">Extra Mattress:</span><span class="vl">'+c.maxExtraMattress+'</span></div>':'')+'</div></div><div class="st">HOTEL CONFIRMATIONS</div><table><tr><th>Hotel</th><th>Place</th><th>Check In</th><th>Check Out</th><th>Nights</th><th>Meal</th></tr>'+hr+'</table>'+(vr?'<div class="st">VEHICLE &amp; TRANSPORT</div><table><tr><th>Vehicle</th><th>Vehicle / Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+vr+'</table>':'')+'<div class="st">DRIVER</div><div class="g2"><div><div class="ir"><span class="lb">Driver:</span><span class="vl">'+(b.driverName||'—')+'</span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+(b.driverContact||'—')+'</span></div></div></div>'+(ir?'<div class="st">ITINERARY</div><table>'+ir+'</table>':'')+'<div class="imp"><b>&#9888; IMPORTANT:</b> Carry this voucher with a valid photo ID. Please refer to each hotel&rsquo;s check-in / check-out time shown above.</div><div class="ft">Thank you for choosing <b>Mishri Holidays</b></div></div></body></html>';
+}
+
+function makeInv(b){
+  var on=b.selectedOption||1,c=calcOpt(b,on);
+  var received=parseFloat(b.paymentReceived)||0;
+  var bal=c.grandTotal-received;
+  var paid=bal<=0;
+  var invNo=(b.bookingRef||b.quotNo||'')+'-INV';
+  var srNo=0;
+  var rowTotalAdult=c.perAdult*c.adults;
+  var rowTotalChild=c.perChild*c.chargeableChild;
+  var itemRows=
+     '<tr><td class="c">'+(++srNo)+'</td><td>Tour Package &ndash; Adult<div class="isub">Option '+on+' &bull; '+(b.destination||'')+'</div></td><td class="c">'+c.adults+'</td><td class="r">'+fmt(c.perAdult)+'</td><td class="r">'+fmt(rowTotalAdult)+'</td></tr>'
+    +(c.chargeableChild>0?'<tr><td class="c">'+(++srNo)+'</td><td>Tour Package &ndash; Child</td><td class="c">'+c.chargeableChild+'</td><td class="r">'+fmt(c.perChild)+'</td><td class="r">'+fmt(rowTotalChild)+'</td></tr>':'');
+  var displayGrandTotal=rowTotalAdult+rowTotalChild;
+  bal=displayGrandTotal-received;
+  paid=bal<=0;
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
+    +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm;position:relative}'
+    +'.hd{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:3px solid #B8892F}'
+    +'.logo-name{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:25px;font-weight:900;color:#B8892F;letter-spacing:0.3px}'
+    +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8px;color:#999;margin-top:2px;letter-spacing:1.8px;text-transform:uppercase}'
+    +'.contact-line{font-size:9px;color:#888;margin-top:6px}'
+    +'.inv-tag{text-align:right}'
+    +'.inv-title{font-family:"Playfair Display",Georgia,serif;font-size:26px;font-weight:900;color:#1a1d27;letter-spacing:1px}'
+    +'.inv-meta{font-size:9.5px;color:#666;margin-top:4px}'
+    +'.inv-meta b{color:#1a1d27}'
+    +'.status-chip{display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;font-size:9.5px;font-weight:700;letter-spacing:0.5px}'
+    +'.status-paid{background:#e2f6e9;color:#1e7e42;border:1px solid #b7e4c7}'
+    +'.status-due{background:#fdecec;color:#c0392b;border:1px solid #f5c6c6}'
+    +'.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}'
+    +'.bx{border:1px solid #eee;border-left:3px solid #B8892F;border-radius:4px;padding:11px 13px;background:#fdfbf6}'
+    +'.bt{font-family:"Poppins",sans-serif;font-size:8.5px;font-weight:700;color:#B8892F;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}'
+    +'.bx p{font-size:10px;margin-bottom:2px;color:#333}'
+    +'.bx p.name{font-size:12px;font-weight:700;color:#1a1d27}'
+    +'table.items{width:100%;border-collapse:collapse;margin-bottom:0}'
+    +'.items thead th{background:#1a1d27;color:#D4A843;padding:8px 10px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left}'
+    +'.items thead th.r{text-align:right}'
+    +'.items td{padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:10.5px;vertical-align:top}'
+    +'.items td.r{text-align:right;font-weight:600;white-space:nowrap}'
+    +'.items td.c{text-align:center}'
+    +'.items th.c{text-align:center}'
+    +'.isub{font-size:8.5px;color:#999;margin-top:1px}'
+    +'.totals{width:100%;max-width:280px;margin-left:auto;margin-top:0;border-collapse:collapse}'
+    +'.totals td{padding:6px 10px;font-size:10px;border-bottom:1px solid #f0f0f0}'
+    +'.totals td.r{text-align:right;font-weight:600}'
+    +'.totals tr.gst td{color:#B8892F}'
+    +'.totals tr.grand td{background:#1a1d27;color:#fff;font-weight:900;font-size:13px;border-radius:4px}'
+    +'.totals tr.grand td:first-child{border-radius:4px 0 0 4px}'
+    +'.totals tr.grand td:last-child{border-radius:0 4px 4px 0;color:#D4A843}'
+    +'.pay-strip{display:flex;justify-content:space-between;align-items:center;margin-top:22px;border:2px solid '+(paid?'#1e7e42':'#B8892F')+';border-radius:6px;padding:14px 18px;background:'+(paid?'#f3fbf6':'#fffaf0')+'}'
+    +'.pay-strip .lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:700}'
+    +'.pay-strip .val{font-size:15px;font-weight:900;color:#1a1d27;margin-top:2px}'
+    +'.terms{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:10px 13px;margin-top:16px}'
+    +'.terms-title{font-family:"Poppins",sans-serif;font-weight:700;font-size:9.5px;color:#1a1d27;margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.terms ul{padding-left:14px}.terms li{font-size:9px;color:#666;padding:1.5px 0}'
+    +'.footer{margin-top:20px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center}'
+    +'.footer .thanks{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:12px;color:#B8892F}'
+    +'.footer .sub{font-size:8.5px;color:#aaa;margin-top:2px}'
+    +'@media print{.page{padding:5mm 8mm}}'
+    +'</style></head><body><div class="page">'
+
+    +'<div class="hd"><div><div class="logo-name">&#9992; Mishri Holidays</div><div class="logo-sub">Your Holiday Planner</div><div class="contact-line">+91 99981 47184 &nbsp;/&nbsp; +91 79909 17434</div></div>'
+    +'<div class="inv-tag"><div class="inv-title">INVOICE</div>'
+    +'<div class="inv-meta">Invoice No.: <b>'+invNo+'</b></div>'
+    +'<div class="inv-meta">Date: <b>'+fmtD(b.bookingDate||b.createdAt)+'</b></div>'
+    +'<div class="status-chip '+(paid?'status-paid':'status-due')+'">'+(paid?'&#10003; PAID IN FULL':'&#9888; BALANCE DUE')+'</div>'
+    +'</div></div>'
+
+    +'<div class="g2">'
+    +'<div class="bx"><div class="bt">Billed To</div><p class="name">'+b.guestName+'</p><p>'+b.contact+'</p>'+(b.email?'<p>'+b.email+'</p>':'')+'<p>Destination: '+b.destination+'</p></div>'
+    +'<div class="bx"><div class="bt">Trip Details</div><p>Booking Ref: <b>'+(b.bookingRef||b.quotNo)+'</b></p><p>'+fmtD(b.startDate)+' &nbsp;&rarr;&nbsp; '+fmtD(b.endDate)+'</p><p>'+c.adults+' Adult(s)'+(c.chargeableChild>0?' &bull; '+c.chargeableChild+' Child':'')+' &bull; '+(b.rooms||'—')+' Room(s)</p></div>'
+    +'</div>'
+
+    +'<table class="items"><thead><tr><th class="c" style="width:32px">Sr.</th><th>Description</th><th class="c" style="width:80px">No. of Person</th><th class="r" style="width:100px">Rate/Person</th><th class="r" style="width:100px">Total (Rs.)</th></tr></thead><tbody>'
+    +itemRows
+    +'</tbody></table>'
+
+    +'<table class="totals" style="margin-top:8px">'
+    +'<tr class="gst"><td>GST</td><td class="r">'+(c.gstPct>0?c.gstPct+'% included in rates above':'Not applicable / not included')+'</td></tr>'
+    +'<tr class="grand"><td>GRAND TOTAL</td><td class="r">'+fmt(displayGrandTotal)+'</td></tr>'
+    +'</table>'
+
+    +'<div class="pay-strip"><div><div class="lbl">Amount Received</div><div class="val">'+fmt(received)+'</div></div>'
+    +'<div style="text-align:right"><div class="lbl">Balance Due</div><div class="val" style="color:'+(paid?'#1e7e42':'#c0392b')+'">'+fmt(Math.max(bal,0))+'</div></div></div>'
+
+
+    +'<div class="terms"><div class="terms-title">Notes</div><ul>'
+    +'<li>'+(c.gstPct>0?'This invoice includes GST @ '+c.gstPct+'% as applicable.':'This is a non-GST invoice.')+'</li>'
+    +'<li>Kindly retain this invoice for your records. Contact us for any billing queries.</li>'
+    +'</ul></div>'
+
+    +'<div class="footer"><div><div class="thanks">Thank you for travelling with us</div><div class="sub">This is a computer-generated invoice and does not require a signature.</div></div>'
+    +'<div style="text-align:right"><div class="logo-name" style="font-size:15px">&#9992; Mishri Holidays</div></div></div>'
+
+    +'</div></body></html>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  PAGE BUILDERS
+// ════════════════════════════════════════════════════════════
+function bDash(){
+  var bks=APP.bookings;
+  var cnt={Quotation:0,Confirmed:0,Completed:0};
+  bks.forEach(function(b){if(cnt[b.status]!==undefined)cnt[b.status]++;});
+  var wrap=el('div');
+  // Sync status card
+  var sc=el('div');sc.className='card';sc.style.cssText='border:1.5px solid '+(APP.online?'#2ECC71':'#E67E22')+'44;margin-bottom:14px';
+  sc.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center">'
+    +'<div><div style="font-size:12px;font-weight:700;color:'+(APP.online?'#2ECC71':'#E67E22')+'">'+(APP.online?'● Desktop Connected':'● Offline Mode')+'</div>'
+    +'<div style="font-size:11px;color:#8A8090;margin-top:2px">'+(APP.online?'Data saves to data/bookings.json':'Data saves to mobile browser storage')+'</div></div>'
+    +(APP.pendingSync&&APP.online?'<button class="btn sm gn" onclick="doSync()">⟳ Sync Now</button>':APP.pendingSync?'<span style="font-size:11px;color:#E67E22">⚠ Pending sync</span>':'')
+    +'</div>';
+  wrap.appendChild(sc);
+  var g=el('div');g.className='g2';g.style.marginBottom='16px';
+  [{l:'Total',v:bks.length,c:'#D4A843',i:'📁'},{l:'Quotations',v:cnt.Quotation,c:'#3498DB',i:'📄'},{l:'Confirmed',v:cnt.Confirmed,c:'#2ECC71',i:'✅'},{l:'Completed',v:cnt.Completed,c:'#8A8090',i:'🏁'}]
+  .forEach(function(s){var d=el('div');d.className='card';d.style.border='1px solid '+s.c+'33';d.innerHTML='<div style="font-size:22px">'+s.i+'</div><div style="font-size:26px;font-weight:900;color:'+s.c+';margin-top:4px">'+s.v+'</div><div style="font-size:11px;color:#8A8090;margin-top:2px">'+s.l+'</div>';g.appendChild(d);});
+  wrap.appendChild(div('font-size:20px;font-weight:800;color:#D4A843;margin-bottom:14px','Dashboard'));
+  wrap.appendChild(g);
+  wrap.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:10px','Recent Bookings'));
+  if(!bks.length){wrap.appendChild(div('text-align:center;color:#8A8090;padding:30px;background:#1A1D27;border-radius:10px','<div style="font-size:36px">✈</div><div style="margin-top:8px">No bookings yet. Tap + New to start.</div>'));}
+  else{bks.slice(0,5).forEach(function(b){var c=calcOpt(b,b.selectedOption||1);var sc2=b.status==='Confirmed'?'#2ECC71':b.status==='Quotation'?'#3498DB':'#8A8090';var card=el('div');card.className='card';card.style.cursor='pointer';card.innerHTML='<div class="row"><div><div style="font-weight:700;font-size:14px">'+b.guestName+'</div><div style="font-size:11px;color:#8A8090;margin-top:3px">'+b.quotNo+' &bull; '+(b.destination||'—')+'</div></div><div style="text-align:right"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc2+'22;color:'+sc2+'">'+b.status+'</span></div></div>';card.addEventListener('click',function(){APP.edit=JSON.parse(JSON.stringify(b));APP.ftab='guest';go('form');});wrap.appendChild(card);});}
+  return wrap;
+}
+
+function bList(){
+  var wrap=el('div');
+  var srch=el('input');srch.className='inp';srch.style.cssText='border-radius:16px;margin-bottom:12px';srch.placeholder='Search name, ref, destination...';
+  wrap.appendChild(srch);var lw=el('div');wrap.appendChild(lw);
+  function render(q){
+    q=(q||'').toLowerCase();lw.innerHTML='';
+    var filtered=APP.bookings.filter(function(b){return(b.guestName||'').toLowerCase().indexOf(q)>=0||(b.quotNo||'').toLowerCase().indexOf(q)>=0||(b.destination||'').toLowerCase().indexOf(q)>=0;});
+    if(!filtered.length){lw.innerHTML='<div style="text-align:center;color:#8A8090;padding:40px">No bookings found</div>';return;}
+    filtered.forEach(function(b){
+      var c=calcOpt(b,b.selectedOption||1);
+      var sc=b.status==='Confirmed'?'#2ECC71':b.status==='Quotation'?'#3498DB':b.status==='Completed'?'#8A8090':'#E74C3C';
+      var card=el('div');card.className='card';
+      card.innerHTML='<div class="row" style="margin-bottom:8px"><div style="flex:1"><div style="font-weight:800;font-size:14px">'+b.guestName+'</div><div style="font-size:11px;color:#8A8090;margin-top:3px">'+b.quotNo+' &bull; '+(b.destination||'—')+'</div><div style="font-size:11px;color:#8A8090">&#9990; '+(b.contact||'—')+'</div></div><div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc+'22;color:'+sc+'">'+b.status+'</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"></div>';
+      var br=card.querySelector('div:last-child');
+      (function(bk){
+        br.appendChild(btn('📄','btn sm ob',function(){openPrint(makeQuot(bk,bk.selectedOption||1),'Quotation_'+bk.quotNo+'.pdf');}));
+        br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
+        br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
+        br.appendChild(btn('Edit','btn sm bg',function(){APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';go('form');}));
+        br.appendChild(btn('✕','btn sm or',function(){deleteBooking(bk.quotNo);go('list');}));
+      })(b);
+      lw.appendChild(card);
+    });
+  }
+  srch.addEventListener('input',function(){render(srch.value);});render('');return wrap;
+}
+
+function bForm(){
+  var b=APP.edit;if(!b)return el('div');
+  var wrap=el('div');
+  var top=el('div');top.className='row';top.style.marginBottom='12px';
+  top.appendChild(btn('← Back','btn sm bm',function(){go('list');}));
+  var ttl=el('div');ttl.style.cssText='font-size:14px;font-weight:800;color:#D4A843';ttl.textContent=b.guestName?'Edit: '+b.guestName:'New Booking';
+  top.appendChild(ttl);wrap.appendChild(top);
+  var card=el('div');card.style.cssText='background:#1A1D27;border-radius:10px;border:1px solid #2A2D3A;overflow:hidden;margin-bottom:12px';
+  var tb=el('div');tb.className='tabs';
+  var tabs=[{id:'guest',l:'👤 Guest'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'confirm',l:'✅ Confirm'}];
+  var tbMap={};var tc=el('div');tc.style.padding='12px';
+  function sw(id){APP.ftab=id;Object.keys(tbMap).forEach(function(k){tbMap[k].classList.toggle('on',k===id);});tc.innerHTML='';tc.appendChild(buildTab(id));}
+  tabs.forEach(function(t){var bt=el('button');bt.className='tb'+(APP.ftab===t.id?' on':'');bt.textContent=t.l;bt.addEventListener('click',function(){sw(t.id);});tbMap[t.id]=bt;tb.appendChild(bt);});
+  card.appendChild(tb);card.appendChild(tc);tc.appendChild(buildTab(APP.ftab));wrap.appendChild(card);
+  var ar=el('div');ar.style.cssText='display:flex;gap:10px;justify-content:flex-end;padding-bottom:16px';
+  ar.appendChild(btn('Cancel','btn bm',function(){go('list');}));
+  ar.appendChild(btn('💾 Save','btn bg',function(){saveBooking(APP.edit).then(function(){go('list');});}));
+  wrap.appendChild(ar);return wrap;
+}
+
+function buildTab(tab){
+  var b=APP.edit;var frag=el('div');
+  if(tab==='guest'){
+    frag.appendChild(fld('Quotation No.',inp(b.quotNo,function(v){b.quotNo=v;})));
+    // Reuse a previous guest's details — pick from the datalist and contact/email/
+    // destination auto-fill (only the blank fields, never overwrite what's already typed).
+    var guestNameInput=inp(b.guestName,function(v){b.guestName=v;},'text','Full Name');
+    guestNameInput.setAttribute('list','guestNameList');
+    if(!document.getElementById('guestNameList')){var gdl=document.createElement('datalist');gdl.id='guestNameList';document.body.appendChild(gdl);}
+    var seenG={};document.getElementById('guestNameList').innerHTML=(APP.bookings||[]).filter(function(bb){if(!bb.guestName||seenG[bb.guestName])return false;seenG[bb.guestName]=true;return true;}).map(function(bb){return '<option value="'+bb.guestName.replace(/"/g,'&quot;')+'">';}).join('');
+    var contactInput=inp(b.contact,function(v){b.contact=v;},'text','+91 XXXXX XXXXX');
+    var emailInput=inp(b.email,function(v){b.email=v;},'email','email@example.com');
+    var destInput=inp(b.destination,function(v){b.destination=v;},'text','e.g. Goa');
+    guestNameInput.addEventListener('change',function(){
+      var match=(APP.bookings||[]).find(function(bb){return bb.guestName&&bb.guestName.toLowerCase()===guestNameInput.value.toLowerCase();});
+      if(match){
+        if(!b.contact){b.contact=match.contact;contactInput.value=match.contact||'';}
+        if(!b.email){b.email=match.email;emailInput.value=match.email||'';}
+        // Destination intentionally NOT auto-filled — it changes with every trip.
+      }
+    });
+    // ── Select Existing Customer (repeat booking helper) ──────
+    // Opens a searchable list of past unique customers; picking one fills
+    // Name/Contact/Email only. Destination is left blank for the user to
+    // enter, since it's different for every trip.
+    var pickBtn=btn('👤 Select Existing Customer','btn bm sm',function(){openCustomerPicker(function(cust){
+      b.guestName=cust.guestName;guestNameInput.value=cust.guestName||'';
+      b.contact=cust.contact;contactInput.value=cust.contact||'';
+      b.email=cust.email;emailInput.value=cust.email||'';
+    });});
+    pickBtn.style.cssText='width:100%;margin-bottom:8px';
+    frag.appendChild(pickBtn);
+    frag.appendChild(fld('Guest Name * (type to reuse a past guest)',guestNameInput));
+    frag.appendChild(fld('Contact No.',contactInput));
+    frag.appendChild(fld('Email',emailInput));
+    frag.appendChild(fld('Destination / Tour',destInput));
+    frag.appendChild(fld('Status',sel(b.status,STATUSES,function(v){b.status=v;})));
+    frag.appendChild(g2([fld('Adults',inp(b.adults,function(v){b.adults=parseInt(v)||0;},'number')),fld('Children',inp(b.children,function(v){b.children=parseInt(v)||0;},'number')),fld('Comp. 0-5 Yrs',inp(b.compChildren,function(v){b.compChildren=parseInt(v)||0;},'number')),fld('Rooms',inp(b.rooms,function(v){b.rooms=parseInt(v)||1;},'number'))]));
+    frag.appendChild(fld('Notes',inp(b.notes,function(v){b.notes=v;},'text','Special requests')));
+    frag.appendChild(fld('Date',inp(b.createdAt,function(v){b.createdAt=v;},'date')));
+  }
+  else if(tab==='hotels'){
+    trimHotelRows(b); // collapse any legacy pre-created blank slots down to just the filled rows
+    // Sub-tab state stored on booking object
+    if(!b._activeOpt) b._activeOpt=1;
+    var optDefs=[{n:1,col:'#2ECC71',lbl:'Option 1'},{n:2,col:'#3498DB',lbl:'Option 2'},{n:3,col:'#E67E22',lbl:'Option 3'}];
+
+    // Top: 3 option selector buttons always visible
+    var selRow=el('div');selRow.style.cssText='display:flex;gap:8px;margin-bottom:14px';
+    var panelWrap=el('div');
+
+    function buildOptPanel(od){
+      var panel=el('div');
+
+      // Summary strip
+      var c0=calcOpt(b,od.n);
+      var strip=el('div');
+      strip.style.cssText='background:'+od.col+'22;border:1.5px solid '+od.col+'55;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center';
+      strip.innerHTML='<div><div style="font-size:11px;color:#8A8090;margin-bottom:3px">Hotel: <b style="color:#E8E0D0">'+fmt(c0.hotelCost)+'</b>  +  Vehicle: <b style="color:#E8E0D0">'+fmt(c0.vehCost)+'</b>  +  Markup: <b style="color:#E67E22">'+fmt(c0.markupAmt)+'</b></div>'
+        +'<div style="font-size:10px;color:#8A8090">Per Adult: <b style="color:'+od.col+'">'+fmt(c0.perAdult)+'</b>'+(c0.chargeableChild>0?'  Per Child: <b style="color:'+od.col+'">'+fmt(c0.perChild)+'</b>':'')+(c0.maxExtraMattress>0?'  &bull; 🛏️ Mattress: <b style="color:'+od.col+'">'+c0.maxExtraMattress+'</b>':'')+'</div></div>'
+        +'<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:'+od.col+'">'+fmt(c0.grandTotal)+'</div>'
+        +'<div style="font-size:10px;color:#8A8090">Grand Total</div></div>';
+      panel.appendChild(strip);
+
+      // Hotels section — editable table, one row per hotel (no more stacks of
+      // separate boxes). Option 1 is the master: Place/Dates/Rooms/Extra Adults/
+      // Chargeable Children/Mattress qty entered once here auto-copy to Option 2 & 3,
+      // so those panels only ask for hotel name, room type, meal plan & rates.
+      var hl=el('div');hl.className='sect';hl.textContent='Hotels';panel.appendChild(hl);
+      var key='opt'+od.n;
+      // Shared datalists (created once) for autofill/reuse
+      if(!document.getElementById('hotelDirList')){var dl=el('datalist');dl.id='hotelDirList';document.body.appendChild(dl);}
+      document.getElementById('hotelDirList').innerHTML=APP.hotels.map(function(hh){return '<option value="'+hh.name.replace(/"/g,'&quot;')+'">'+hh.place+'</option>';}).join('');
+      if(!document.getElementById('roomCatList')){var rdl=el('datalist');rdl.id='roomCatList';document.body.appendChild(rdl);}
+      document.getElementById('roomCatList').innerHTML=ROOM_CATS.map(function(r){return '<option value="'+r+'">';}).join('');
+
+      if(od.n!==1){
+        var syncNote=el('div');syncNote.style.cssText='font-size:10.5px;color:#8A8090;margin-bottom:8px;font-style:italic';
+        syncNote.textContent='Place / Check-In-Out / Rooms / Extra Adults / Children / Mattress are shared from Option 1 — only hotel name, room type, meal plan &amp; rates need entering below.';
+        panel.appendChild(syncNote);
+      }
+
+      var tblWrap=el('div');tblWrap.style.cssText='overflow-x:auto;border:1.5px solid '+od.col+'33;border-radius:8px;margin-bottom:8px';
+      var table=el('table');table.style.cssText='border-collapse:collapse;width:100%;font-size:11px;white-space:nowrap';
+      var thead=el('thead');
+      var headCols=(od.n===1)
+        ?['#','Place','Hotel Name','Room Cat.','Check-In','Check-Out','Rooms','Meal','Rate/Room','Ex.Adult','Ex.Rate','Child','Child Rate','Mattress','']
+        :['#','Hotel Name','Room Cat.','Meal','Rate/Room','Ex.Rate','Child Rate',''];
+      var htr=el('tr');
+      headCols.forEach(function(hc){var th=el('th');th.textContent=hc;th.style.cssText='background:'+od.col+'22;color:#E8E0D0;font-size:10px;padding:6px 6px;text-align:left;position:sticky;top:0';htr.appendChild(th);});
+      thead.appendChild(htr);table.appendChild(thead);
+      var tbody=el('tbody');table.appendChild(tbody);
+
+      (b[key]||[]).forEach(function(h,hidx){
+        function updH(k,v){
+          h[k]=v;
+          if(od.n===1 && (k==='place'||k==='checkIn'||k==='checkOut'||k==='rooms'||k==='extraAdults'||k==='chargeableChild'||k==='extraMattress')){
+            [2,3].forEach(function(altN){var arr=b['opt'+altN];if(arr && arr[hidx]) arr[hidx][k]=v;});
+          }
+        }
+        function tdWrap(elm){var td=el('td');td.style.cssText='padding:4px 5px;min-width:78px';elm.style.marginBottom='0';elm.style.padding='6px 7px';elm.style.fontSize='11px';td.appendChild(elm);return td;}
+        var tr=el('tr');tr.style.borderTop='1px solid #2A2D3A';
+        var idxTd=el('td');idxTd.textContent=(hidx+1);idxTd.style.cssText='padding:4px 5px;color:#8A8090;font-weight:700';tr.appendChild(idxTd);
+
+        if(od.n===1){
+          var placeInput=inp(h.place,function(v){updH('place',v);});
+          tr.appendChild(tdWrap(placeInput));
+        }
+
+        var hotelNameInput=inp(h.hotelName,function(v){updH('hotelName',v);});
+        hotelNameInput.setAttribute('list','hotelDirList'); // suggests names from Hotel Directory as you type
+        hotelNameInput.style.minWidth='120px';
+        function refreshHotelHint(){
+          var match=APP.hotels.find(function(hh){return hh.name.toLowerCase()===((h.hotelName||'').toLowerCase());});
+          if(match){
+            hotelNameInput.title='From Directory — 📞 '+(match.ph||'—')+'  ✉️ '+(match.em||'—');
+            if(od.n===1 && !h.place){ placeInput.value=match.place; updH('place',match.place); }
+          } else { hotelNameInput.title=''; }
+        }
+        hotelNameInput.addEventListener('input',refreshHotelHint);refreshHotelHint();
+        tr.appendChild(tdWrap(hotelNameInput));
+
+        var rcInput=inp(h.roomCat,function(v){updH('roomCat',v);},'text','Room type');
+        rcInput.setAttribute('list','roomCatList');rcInput.style.minWidth='90px';
+        tr.appendChild(tdWrap(rcInput));
+
+        if(od.n===1){
+          tr.appendChild(tdWrap(inp(h.checkIn,function(v){updH('checkIn',v);},'date')));
+          tr.appendChild(tdWrap(inp(h.checkOut,function(v){updH('checkOut',v);},'date')));
+          tr.appendChild(tdWrap(inp(h.rooms,function(v){updH('rooms',parseInt(v)||1);},'number')));
+        }
+
+        tr.appendChild(tdWrap(sel(h.mealPlan,MEALS,function(v){updH('mealPlan',v);})));
+        tr.appendChild(tdWrap(inp(h.ratePerRoom,function(v){updH('ratePerRoom',parseFloat(v)||0);},'number','0')));
+
+        if(od.n===1){
+          tr.appendChild(tdWrap(inp(h.extraAdults,function(v){updH('extraAdults',parseInt(v)||0);},'number','0')));
+        }
+        tr.appendChild(tdWrap(inp(h.extraAdultRate,function(v){updH('extraAdultRate',parseFloat(v)||0);},'number','0')));
+        if(od.n===1){
+          tr.appendChild(tdWrap(inp(h.chargeableChild,function(v){updH('chargeableChild',parseInt(v)||0);},'number','0')));
+        }
+        tr.appendChild(tdWrap(inp(h.childRate,function(v){updH('childRate',parseFloat(v)||0);},'number','0')));
+        if(od.n===1){
+          tr.appendChild(tdWrap(inp(h.extraMattress,function(v){updH('extraMattress',parseInt(v)||0);},'number','0')));
+        }
+
+        var delTd=el('td');delTd.style.padding='4px 5px';
+        if((b[key]||[]).length>1){
+          var delBtn=el('button');delBtn.textContent='✕';delBtn.type='button';
+          delBtn.style.cssText='background:transparent;border:none;color:#E74C3C;font-size:14px;cursor:pointer;padding:4px 6px';
+          delBtn.addEventListener('click',function(){removeHotelRow(b,hidx);switchOpt(od.n);});
+          delTd.appendChild(delBtn);
+        }
+        tr.appendChild(delTd);
+        tbody.appendChild(tr);
+      });
+      tblWrap.appendChild(table);panel.appendChild(tblWrap);
+
+      var addHotelBtn=btn('+ Add Hotel','btn sm og',function(){addHotelRow(b);switchOpt(od.n);});
+      addHotelBtn.style.marginBottom='10px';panel.appendChild(addHotelBtn);
+
+      // Voucher/confirmation details (Confirmation No., address, phone, in/out time) —
+      // not needed to cost a quotation, so tucked away collapsed by default and only
+      // opened once the booking is actually confirmed and a voucher is being prepared.
+      var vDetails=el('details');vDetails.style.cssText='margin-bottom:10px';
+      var vSummary=el('summary');vSummary.style.cssText='font-size:11px;color:#8A8090;cursor:pointer;padding:6px 0';vSummary.textContent='🎫 Voucher / confirmation details (optional, per hotel)';
+      vDetails.appendChild(vSummary);
+      (b[key]||[]).forEach(function(h,hidx){
+        var vb=el('div');vb.className='hblock';vb.style.borderColor=od.col+'33';
+        var vtt=el('div');vtt.style.cssText='font-size:11px;font-weight:700;color:'+od.col+';margin-bottom:8px';vtt.textContent='Hotel '+(hidx+1)+(h.hotelName?' — '+h.hotelName:'');vb.appendChild(vtt);
+        vb.appendChild(fld('Hotel Confirmation No.',inp(h.confirmNo,function(v){h.confirmNo=v;},'text','e.g. HTL-CONF-4521')));
+        vb.appendChild(fld('Hotel Address',inp(h.address,function(v){h.address=v;},'text','Full hotel address')));
+        vb.appendChild(fld('Hotel Contact Number',inp(h.phone,function(v){h.phone=v;},'text','+91 XXXXX XXXXX')));
+        vb.appendChild(g2([fld('Check In Time',inp(h.checkInTime,function(v){h.checkInTime=v;},'time')),fld('Check Out Time',inp(h.checkOutTime,function(v){h.checkOutTime=v;},'time'))]));
+        vDetails.appendChild(vb);
+      });
+      panel.appendChild(vDetails);
+
+      // Markup section
+      var ml=el('div');ml.className='sect';ml.textContent='Markup & Service Charges';panel.appendChild(ml);
+      var mkCard=el('div');mkCard.style.cssText='background:#0F1117;border:1px solid #2A2D3A;border-radius:10px;padding:12px';
+      var tRow=el('div');tRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
+      var bPct=el('div');bPct.className='mkbtn';bPct.style.borderColor='#D4A843';bPct.textContent='% Percentage';
+      var bFix=el('div');bFix.className='mkbtn';bFix.style.borderColor='#3498DB';bFix.textContent='Rs. Fixed';
+      var bBoth=el('div');bBoth.className='mkbtn';bBoth.style.borderColor='#2ECC71';bBoth.textContent='Both';
+      tRow.appendChild(bPct);tRow.appendChild(bFix);tRow.appendChild(bBoth);mkCard.appendChild(tRow);
+      var pctRow=el('div');
+      var pctInpEl=inp(b['mkPct'+od.n],function(v){b['mkPct'+od.n]=parseFloat(v)||0;},'number','e.g. 10');
+      var pctPrev=el('div');pctPrev.style.cssText='font-size:11px;color:#D4A843;margin-top:4px;padding:4px 8px;background:#D4A84322;border-radius:6px';
+      function refreshPP(){var base2=calcOpt(b,od.n).base;pctPrev.textContent='= '+fmt((parseFloat(pctInpEl.value)||0)/100*base2)+' on base '+fmt(base2);}
+      refreshPP();pctInpEl.addEventListener('change',refreshPP);
+      var pctW=el('div');pctW.className='fld';var pctL=el('label');pctL.className='lbl';pctL.textContent='Markup % (on Hotel + Vehicle)';pctW.appendChild(pctL);pctW.appendChild(pctInpEl);pctW.appendChild(pctPrev);pctRow.appendChild(pctW);
+      var fixRow=el('div');
+      var fixInpEl=inp(b['mkFixed'+od.n],function(v){b['mkFixed'+od.n]=parseFloat(v)||0;},'number','e.g. 5000');
+      var fixNote=el('div');fixNote.style.cssText='font-size:11px;color:#3498DB;margin-top:4px;padding:4px 8px;background:#3498DB22;border-radius:6px';
+      fixNote.textContent='Fixed Rs. '+fmt(b['mkFixed'+od.n]||0)+' added to total';
+      fixInpEl.addEventListener('change',function(){fixNote.textContent='Fixed Rs. '+fmt(parseFloat(fixInpEl.value)||0)+' added to total';});
+      var fixW=el('div');fixW.className='fld';var fixL=el('label');fixL.className='lbl';fixL.textContent='Fixed Markup Amount (Rs.)';fixW.appendChild(fixL);fixW.appendChild(fixInpEl);fixW.appendChild(fixNote);fixRow.appendChild(fixW);
+      mkCard.appendChild(pctRow);mkCard.appendChild(fixRow);
+      mkCard.appendChild(fld('Misc / Other Charges (Rs.)',inp(b['misc'+od.n],function(v){b['misc'+od.n]=parseFloat(v)||0;},'number','0')));
+      // GST dropdown — 0% / 5% / 18% (some quotations need to go out without GST)
+      var gstSelEl=sel(b['gstPct'+od.n]!==undefined&&b['gstPct'+od.n]!==null&&b['gstPct'+od.n]!==''?String(b['gstPct'+od.n]):'0',
+        [{v:'0',l:'0% (No GST)'},{v:'5',l:'5% GST'},{v:'18',l:'18% GST'}],
+        function(v){b['gstPct'+od.n]=parseFloat(v)||0;setTimeout(refreshSummary,50);});
+      mkCard.appendChild(fld('GST',gstSelEl));
+      var mode=(b['mkPct'+od.n]>0&&b['mkFixed'+od.n]>0)?'both':b['mkFixed'+od.n]>0?'fix':'pct';
+      function setMode(m){mode=m;bPct.style.background=m==='pct'?'#D4A843':'transparent';bPct.style.color=m==='pct'?'#1a1d27':'#D4A843';bFix.style.background=m==='fix'?'#3498DB':'transparent';bFix.style.color=m==='fix'?'#fff':'#3498DB';bBoth.style.background=m==='both'?'#2ECC71':'transparent';bBoth.style.color=m==='both'?'#1a1d27':'#2ECC71';pctRow.style.display=(m==='pct'||m==='both')?'':'none';fixRow.style.display=(m==='fix'||m==='both')?'':'none';if(m==='fix'){b['mkPct'+od.n]=0;pctInpEl.value=0;refreshPP();}if(m==='pct'){b['mkFixed'+od.n]=0;fixInpEl.value=0;fixNote.textContent='Fixed Rs. Rs.0 added to total';}}
+      setMode(mode);
+      bPct.addEventListener('click',function(){setMode('pct');setTimeout(refreshSummary,50);});
+      bFix.addEventListener('click',function(){setMode('fix');setTimeout(refreshSummary,50);});
+      bBoth.addEventListener('click',function(){setMode('both');setTimeout(refreshSummary,50);});
+      // Live refresh on every markup input change
+      pctInpEl.addEventListener('change',function(){setTimeout(refreshSummary,50);});
+      fixInpEl.addEventListener('change',function(){setTimeout(refreshSummary,50);});
+      mkCard.querySelectorAll && mkCard.querySelectorAll('input').forEach && mkCard.querySelectorAll('input').forEach(function(i){i.addEventListener('change',function(){setTimeout(refreshSummary,50);});});
+      panel.appendChild(mkCard);
+
+      // Cost summary box — LIVE updating
+      var sb=el('div');sb.style.cssText='background:'+od.col+'11;border:1.5px solid '+od.col+'44;border-radius:10px;padding:14px;margin-top:10px';
+
+      function refreshSummary(){
+        var c2=calcOpt(b,od.n);
+        sb.innerHTML='<div style="font-size:11px;font-weight:700;color:#8A8090;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Option '+od.n+' Cost Breakdown</div>'
+          +'<div style="background:#0F1117;border-radius:8px;overflow:hidden;margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#8A8090">&#127968; Hotel Cost</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.hotelCost)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#8A8090">&#128663; Vehicle Cost</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.vehCost)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A;font-weight:700"><span style="font-size:12px;color:#8A8090">Base Total</span><span style="color:#E8E0D0">'+fmt(c2.base)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#E67E22">+ Markup / Service</span><span style="font-weight:700;color:#E67E22">'+fmt(c2.markupAmt)+'</span></div>'
+          +(c2.misc>0?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#E67E22">+ Misc</span><span style="font-weight:700;color:#E67E22">'+fmt(c2.misc)+'</span></div>':'')
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px"><span style="font-size:12px;color:#8A8090">+ GST ('+c2.gstPct+'%)</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.gstAmt)+'</span></div>'
+          +'</div>'
+          +'<div style="background:'+od.col+'33;border-radius:8px;padding:12px;text-align:center">'
+          +'<div style="font-size:11px;color:#8A8090;margin-bottom:4px">GRAND TOTAL</div>'
+          +'<div style="font-size:26px;font-weight:900;color:'+od.col+'">'+fmt(c2.grandTotal)+'</div>'
+          +'<div style="display:flex;gap:14px;justify-content:center;margin-top:8px;flex-wrap:wrap">'
+          +'<span style="font-size:12px;color:#8A8090">Per Adult: <b style="color:'+od.col+'">'+fmt(c2.perAdult)+'</b></span>'
+          +(c2.chargeableChild>0?'<span style="font-size:12px;color:#8A8090">Per Child: <b style="color:'+od.col+'">'+fmt(c2.perChild)+'</b></span>':'')
+          +'</div></div>';
+      }
+      refreshSummary();
+      panel.appendChild(sb);
+      return panel;
+    }
+
+    // Build selector buttons + switch panels
+    var selBtns={};
+    function switchOpt(n){
+      b._activeOpt=n;
+      Object.keys(selBtns).forEach(function(k){
+        var od2=optDefs[parseInt(k)-1];
+        var active=parseInt(k)===n;
+        selBtns[k].style.background=active?od2.col:'transparent';
+        selBtns[k].style.color=active?(od2.col==='#2ECC71'?'#1a1d27':'#fff'):od2.col;
+        selBtns[k].style.borderColor=od2.col;
+      });
+      panelWrap.innerHTML='';
+      panelWrap.appendChild(buildOptPanel(optDefs[n-1]));
+    }
+
+    optDefs.forEach(function(od){
+      var c0=calcOpt(b,od.n);
+      var sb2=el('div');
+      sb2.style.cssText='flex:1;border:1.5px solid '+od.col+';border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center;transition:all .15s';
+      sb2.innerHTML='<div style="font-size:11px;font-weight:800;color:inherit;margin-bottom:3px">OPTION '+od.n+'</div>'
+        +'<div style="font-size:13px;font-weight:900;color:inherit">'+fmt(c0.grandTotal)+'</div>'
+        +'<div style="font-size:9px;opacity:.7">'+fmt(c0.perAdult)+'/adult</div>';
+      sb2.addEventListener('click',function(){switchOpt(od.n);});
+      selBtns[od.n]=sb2;
+      selRow.appendChild(sb2);
+    });
+
+    frag.appendChild(selRow);
+    frag.appendChild(panelWrap);
+    switchOpt(b._activeOpt||1);
+  }
+  else if(tab==='vehicle'){
+    trimVehicleRows(b);
+    var vs=el('div');vs.className='sect';vs.textContent='Vehicle / Transport';frag.appendChild(vs);
+    // Reuse datalists — vehicle types & numbers seen across ALL past bookings, so a
+    // regular cab/vendor never needs its details typed out from scratch again.
+    if(!document.getElementById('vehTypeList')){var vtl=el('datalist');vtl.id='vehTypeList';document.body.appendChild(vtl);}
+    if(!document.getElementById('vehNoList')){var vnl=el('datalist');vnl.id='vehNoList';document.body.appendChild(vnl);}
+    var seenT={},seenN={},typeOpts=[],noOpts=[];
+    (APP.bookings||[]).forEach(function(bb){(bb.vehicles||[]).forEach(function(vv){
+      if(vv.type&&!seenT[vv.type]){seenT[vv.type]=true;typeOpts.push(vv.type);}
+      if(vv.vehicleNo&&!seenN[vv.vehicleNo]){seenN[vv.vehicleNo]=true;noOpts.push(vv.vehicleNo);}
+    });});
+    document.getElementById('vehTypeList').innerHTML=typeOpts.map(function(t){return '<option value="'+t.replace(/"/g,'&quot;')+'">';}).join('');
+    document.getElementById('vehNoList').innerHTML=noOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">';}).join('');
+
+    (b.vehicles||[]).forEach(function(v,vi){
+      var vc=el('div');vc.className='card';vc.style.marginBottom='10px';
+      var row=el('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px';
+      var vt=el('div');vt.style.cssText='font-size:12px;font-weight:700;color:#3498DB';vt.textContent='Vehicle '+(vi+1);row.appendChild(vt);
+      if(b.vehicles.length>1){
+        var delBtn=btn('✕ Remove','btn sm or',function(){removeVehicleRow(b,vi);var tc=frag.parentNode;if(tc){tc.innerHTML='';tc.appendChild(buildTab('vehicle'));}});
+        row.appendChild(delBtn);
+      }
+      vc.appendChild(row);
+      var typeInput=inp(v.type,function(val){v.type=val;},'text','e.g. AC Innova Crysta');
+      typeInput.setAttribute('list','vehTypeList');
+      var noInput=inp(v.vehicleNo,function(val){v.vehicleNo=val;},'text','e.g. KL-07-AB-1234');
+      noInput.setAttribute('list','vehNoList');
+      vc.appendChild(g2([fld('Vehicle Type',typeInput),fld('Vehicle / Cab No.',noInput)]));
+      vc.appendChild(g2([fld('Pick Up From',inp(v.from,function(val){v.from=val;},'text','e.g. Airport')),fld('Drop To',inp(v.to,function(val){v.to=val;},'text','e.g. Hotel'))]));
+      vc.appendChild(fld('Total Cost (Rs.)',inp(v.cost,function(val){v.cost=parseFloat(val)||0;},'number','0')));
+      frag.appendChild(vc);
+    });
+    frag.appendChild(btn('+ Add Vehicle','btn sm ob',function(){addVehicleRow(b);var tc=frag.parentNode;if(tc){tc.innerHTML='';tc.appendChild(buildTab('vehicle'));}}));
+  }
+  else if(tab==='confirm'){
+    frag.appendChild(fld('Booking Ref No.',inp(b.bookingRef,function(v){b.bookingRef=v;})));
+    frag.appendChild(fld('Booking Date',inp(b.bookingDate,function(v){b.bookingDate=v;},'date')));
+    frag.appendChild(fld('Selected Option',sel(b.selectedOption,[{v:1,l:'Option 1'},{v:2,l:'Option 2'},{v:3,l:'Option 3'}],function(v){b.selectedOption=parseInt(v);})));
+    frag.appendChild(g2([fld('Tour Start Date',inp(b.startDate,function(v){b.startDate=v;},'date')),fld('Tour End Date',inp(b.endDate,function(v){b.endDate=v;},'date'))]));
+    frag.appendChild(g2([fld('Driver Name',inp(b.driverName,function(v){b.driverName=v;})),fld('Driver Contact',inp(b.driverContact,function(v){b.driverContact=v;},'text','+91 XXXXX'))]));
+    // Bug fix (3): removed the old booking-level "Hotel Confirmation No." field — each
+    // hotel now has its own Confirmation No. entered on the Hotels tab, which is what
+    // actually shows in the voucher's Hotel Confirmations table.
+    frag.appendChild(fld('Payment Received (Rs.)',inp(b.paymentReceived,function(v){b.paymentReceived=parseFloat(v)||0;},'number')));
+
+    // Auto-generate voucher button
+    var vouchBox=el('div');vouchBox.style.cssText='background:#0F1117;border:1.5px solid #2ECC7144;border-radius:10px;padding:14px;margin-top:14px';
+    vouchBox.innerHTML='<div style="font-size:12px;font-weight:700;color:#2ECC71;margin-bottom:6px">🎫 Auto-Generate Voucher</div>'
+      +'<div style="font-size:11px;color:#8A8090;margin-bottom:10px">Booking confirm thata j voucher generate karo — driver, hotel ane guest ne share karo.</div>';
+    var vBtn=el('button');vBtn.className='btn gn';vBtn.textContent='🎫 Generate & Print Voucher';
+    vBtn.addEventListener('click',function(){
+      // Save first, then print
+      saveBooking(APP.edit).then(function(){
+        openPrint(makeVouch(APP.edit),'Voucher_'+APP.edit.quotNo+'.pdf');
+      });
+    });
+    vouchBox.appendChild(vBtn);
+
+    // Also add invoice button
+    var invBtn=el('button');invBtn.className='btn pp';invBtn.style.marginTop='8px';invBtn.textContent='🧾 Generate Invoice';
+    invBtn.addEventListener('click',function(){
+      saveBooking(APP.edit).then(function(){
+        openPrint(makeInv(APP.edit),'Invoice_'+APP.edit.quotNo+'.pdf');
+      });
+    });
+    vouchBox.appendChild(el('br'));
+    vouchBox.appendChild(invBtn);
+    frag.appendChild(vouchBox);
+  }
+  else if(tab==='itinerary'){
+    (b.itinerary||[]).forEach(function(day,di){
+      var row=el('div');row.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:10px';
+      var dl=el('div');dl.style.cssText='background:#D4A843;color:#1a1d27;border-radius:6px;padding:7px 6px;font-weight:800;font-size:11px;text-align:center;min-width:42px;flex-shrink:0';dl.textContent='Day '+(di+1);
+      var di2=el('input');di2.className='inp';di2.value=day||'';di2.placeholder='Day '+(di+1)+' activities';di2.addEventListener('input',function(){b.itinerary[di]=di2.value;});
+      row.appendChild(dl);row.appendChild(di2);frag.appendChild(row);
+    });
+  }
+  else if(tab==='docs'){
+    frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:6px','Generate Documents'));
+    frag.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:14px','Tap → Print dialog → Save as PDF'));
+    var dw=el('div');dw.style.cssText='display:flex;flex-direction:column;gap:10px';
+    (function(bk){
+      // Single option quotations
+      var singleLbl=el('div');singleLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:4px';singleLbl.textContent='Single Option:';dw.appendChild(singleLbl);
+      dw.appendChild(btn('📄 Option 1 Only','btn gn',function(){openPrint(makeQuot(bk,1),'Quotation_Opt1_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('📄 Option 2 Only','btn bn',function(){openPrint(makeQuot(bk,2),'Quotation_Opt2_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('📄 Option 3 Only','btn o2',function(){openPrint(makeQuot(bk,3),'Quotation_Opt3_'+bk.quotNo+'.pdf');}));
+      // Multi option quotations
+      var multiLbl=el('div');multiLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:10px';multiLbl.textContent='Multiple Options (one PDF):';dw.appendChild(multiLbl);
+      dw.appendChild(btn('📄 Option 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),'Quotation_Opt1_2_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('📄 Option 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),'Quotation_Opt1_3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('📄 Option 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),'Quotation_Opt2_3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('📄 All 3 Options Together','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),'Quotation_All_'+bk.quotNo+'.pdf');}));
+      // Voucher & Invoice
+      var otherLbl=el('div');otherLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:10px';otherLbl.textContent='Other Documents:';dw.appendChild(otherLbl);
+      dw.appendChild(btn('🎫 Travel Voucher','btn og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(btn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
+    })(b);
+    frag.appendChild(dw);
+  }
+  return frag;
+}
+
+// ── EXCEL IMPORT HELPERS ─────────────────────────────────────
+// Accepts flexible column headers (any case, any order) and maps
+// them to the hotel record fields used throughout the app.
+function normalizeHotelRow(row){
+  var out={name:'',place:'',cat:'',ph:'',em:'',stars:3};
+  Object.keys(row).forEach(function(key){
+    var k=key.toLowerCase().trim();
+    var v=String(row[key]||'').trim();
+    if(!v)return;
+    if(k.indexOf('name')>=0) out.name=v;
+    else if(k.indexOf('place')>=0||k.indexOf('city')>=0||k.indexOf('location')>=0||k.indexOf('destination')>=0) out.place=v;
+    else if(k.indexOf('cat')>=0||k.indexOf('type')>=0) out.cat=v;
+    else if(k.indexOf('phone')>=0||k.indexOf('contact')>=0||k.indexOf('mobile')>=0||k==='ph') out.ph=v;
+    else if(k.indexOf('mail')>=0) out.em=v;
+    else if(k.indexOf('star')>=0||k.indexOf('rating')>=0) out.stars=parseInt(v)||3;
+  });
+  return out;
+}
+function downloadHotelTemplate(){
+  var sample=[
+    {Name:'Amara Grand',Place:'Goa',Category:'Premium',Contact:'+91 832 246 8800',Email:'reservations@amaragrand.com',Stars:5},
+    {Name:'Rambagh Palace',Place:'Jaipur',Category:'Luxury',Contact:'+91 141 221 1919',Email:'rambagh@tajhotels.com',Stars:5}
+  ];
+  var ws=XLSX.utils.json_to_sheet(sample);
+  var wbk=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wbk,ws,'Hotels');
+  XLSX.writeFile(wbk,'Hotel_Import_Template.xlsx');
+}
+
+function bHotels(){
+  var wrap=el('div');
+  wrap.appendChild(div('font-size:18px;font-weight:800;color:#D4A843;margin-bottom:14px','Hotel Directory'));
+
+  // ── EXCEL/CSV BULK IMPORT ────────────────────────────────
+  var impCard=el('div');impCard.className='card';impCard.style.cssText='margin-bottom:12px;border:1.5px solid #2ECC7144';
+  impCard.appendChild(div('font-size:14px;font-weight:700;color:#2ECC71;margin-bottom:6px','📤 Import Hotels from Excel'));
+  impCard.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Columns: Name, Place, Category, Contact, Email, Stars (any order, any case — extra columns ignored)'));
+  var impRow=el('div');impRow.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+  var fileInp=document.createElement('input');
+  fileInp.type='file';fileInp.accept='.xlsx,.xls,.csv';fileInp.style.display='none';
+  var pickBtn=btn('📁 Choose Excel/CSV File','btn sm bn',function(){fileInp.click();});
+  var sampleBtn=btn('⬇ Sample Template','btn sm bm',downloadHotelTemplate);
+  impRow.appendChild(pickBtn);impRow.appendChild(sampleBtn);
+  impCard.appendChild(impRow);
+  impCard.appendChild(fileInp);
+  var impStatus=el('div');impStatus.style.cssText='font-size:11px;margin-top:8px';
+  impCard.appendChild(impStatus);
+  var previewWrap=el('div');previewWrap.style.marginTop='10px';
+  impCard.appendChild(previewWrap);
+  fileInp.onchange=function(){
+    var file=fileInp.files[0];if(!file)return;
+    impStatus.style.color='#8A8090';impStatus.textContent='Reading file...';
+    previewWrap.innerHTML='';
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var wb=XLSX.read(e.target.result,{type:'binary'});
+        var sheet=wb.Sheets[wb.SheetNames[0]];
+        var rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+        if(!rows.length){impStatus.style.color='#E74C3C';impStatus.textContent='No rows found in this file.';return;}
+        var parsed=rows.map(normalizeHotelRow).filter(function(h){return h.name;});
+        if(!parsed.length){impStatus.style.color='#E74C3C';impStatus.textContent='Could not find a "Name" column — check the sample template.';return;}
+        impStatus.style.color='#2ECC71';impStatus.textContent='✅ Found '+parsed.length+' hotel(s) — preview below, then confirm.';
+        renderPreview(parsed);
+      }catch(err){
+        impStatus.style.color='#E74C3C';impStatus.textContent='Could not read file: '+err.message;
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+  function renderPreview(parsed){
+    previewWrap.innerHTML='';
+    var list=el('div');list.style.cssText='max-height:220px;overflow-y:auto;border:1px solid #2A2D3A;border-radius:8px;padding:8px;margin-bottom:8px';
+    parsed.forEach(function(h){
+      var row=el('div');row.style.cssText='font-size:11px;padding:4px 0;border-bottom:1px solid #2A2D3A22';
+      row.innerHTML='<b>'+h.name+'</b> — '+(h.place||'—')+' • 📞 '+(h.ph||'—')+' • ✉️ '+(h.em||'—');
+      list.appendChild(row);
+    });
+    previewWrap.appendChild(list);
+    var confirmBtn=btn('✅ Import '+parsed.length+' Hotels','btn bg sm',function(){
+      // Merge: same Name+Place already in directory → update it; else add new
+      var merged=APP.hotels.slice();
+      parsed.forEach(function(h){
+        var idx=merged.findIndex(function(x){return x.name.toLowerCase()===h.name.toLowerCase() && (x.place||'').toLowerCase()===(h.place||'').toLowerCase();});
+        var record={id:idx>=0?merged[idx].id:Date.now()+Math.random(),name:h.name,place:h.place,cat:h.cat||'Standard',ph:h.ph,em:h.em,stars:h.stars||3};
+        if(idx>=0) merged[idx]=record; else merged.push(record);
+      });
+      saveHotels(merged);
+      toast('✅ Imported '+parsed.length+' hotels!');
+      go('hotels');
+    });
+    previewWrap.appendChild(confirmBtn);
+  }
+  wrap.appendChild(impCard);
+
+  // Search box
+  var searchSt={q:''};
+  var searchWrap=el('div');searchWrap.style.marginBottom='10px';
+  var searchInp=inp('','','text','🔍 Search by name or place...');
+  searchInp.oninput=function(e){searchSt.q=e.target.value.toLowerCase();renderList();};
+  searchWrap.appendChild(searchInp);
+  wrap.appendChild(searchWrap);
+
+  var addWrap=el('div');var addSt={show:false,name:'',place:'',cat:'',ph:'',em:'',stars:3};
+  function renderAdd(){
+    addWrap.innerHTML='';
+    if(!addSt.show){addWrap.appendChild(btn('+ Add Hotel','btn sm og',function(){addSt.show=true;renderAdd();}));return;}
+    var form=el('div');form.className='card';form.style.marginBottom='12px';
+    form.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:10px','Add New Hotel'));
+    form.appendChild(fld('Hotel Name',inp(addSt.name,function(v){addSt.name=v;})));
+    form.appendChild(fld('Place / City',inp(addSt.place,function(v){addSt.place=v;})));
+    form.appendChild(fld('Category',inp(addSt.cat,function(v){addSt.cat=v;},'text','Budget/Standard/Premium/Luxury')));
+    form.appendChild(fld('Contact No.',inp(addSt.ph,function(v){addSt.ph=v;})));
+    form.appendChild(fld('Email',inp(addSt.em,function(v){addSt.em=v;},'email')));
+    form.appendChild(fld('Stars (1-5)',inp(addSt.stars,function(v){addSt.stars=parseInt(v)||3;},'number')));
+    var br=el('div');br.style.cssText='display:flex;gap:8px;margin-top:8px';
+    br.appendChild(btn('Save','btn bg sm',function(){saveHotels(APP.hotels.concat([{id:Date.now(),name:addSt.name,place:addSt.place,cat:addSt.cat,ph:addSt.ph,em:addSt.em,stars:addSt.stars}]));go('hotels');}));
+    br.appendChild(btn('Cancel','btn bm sm',function(){addSt.show=false;renderAdd();}));
+    form.appendChild(br);addWrap.appendChild(form);
+  }
+  renderAdd();wrap.appendChild(addWrap);
+
+  var listWrap=el('div');wrap.appendChild(listWrap);
+  var editingId=null; // which hotel card is currently in edit mode
+
+  function renderList(){
+    listWrap.innerHTML='';
+    var filtered=APP.hotels.filter(function(h){
+      if(!searchSt.q)return true;
+      return (h.name||'').toLowerCase().indexOf(searchSt.q)>=0 || (h.place||'').toLowerCase().indexOf(searchSt.q)>=0;
+    });
+    if(filtered.length===0){
+      listWrap.appendChild(div('font-size:12px;color:#8A8090;text-align:center;padding:20px','No hotels match your search.'));
+      return;
+    }
+    filtered.forEach(function(h){
+      var cc=h.cat==='Luxury'?'#9B59B6':h.cat==='Premium'?'#E67E22':h.cat==='Heritage'?'#D4A843':'#3498DB';
+      var card=el('div');card.className='card';card.style.marginBottom='8px';
+
+      if(editingId===h.id){
+        // ── EDIT MODE ──
+        var eSt={name:h.name,place:h.place,cat:h.cat,ph:h.ph,em:h.em,stars:h.stars||3};
+        card.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:8px','Edit Hotel'));
+        card.appendChild(fld('Hotel Name',inp(eSt.name,function(v){eSt.name=v;})));
+        card.appendChild(fld('Place / City',inp(eSt.place,function(v){eSt.place=v;})));
+        card.appendChild(fld('Category',inp(eSt.cat,function(v){eSt.cat=v;})));
+        card.appendChild(fld('Contact No.',inp(eSt.ph,function(v){eSt.ph=v;})));
+        card.appendChild(fld('Email',inp(eSt.em,function(v){eSt.em=v;},'email')));
+        card.appendChild(fld('Stars (1-5)',inp(eSt.stars,function(v){eSt.stars=parseInt(v)||3;},'number')));
+        var ebr=el('div');ebr.style.cssText='display:flex;gap:8px;margin-top:8px';
+        ebr.appendChild(btn('Save Changes','btn bg sm',function(){
+          var updated=APP.hotels.map(function(x){
+            return x.id===h.id?{id:h.id,name:eSt.name,place:eSt.place,cat:eSt.cat,ph:eSt.ph,em:eSt.em,stars:eSt.stars}:x;
+          });
+          editingId=null;saveHotels(updated);go('hotels');
+        }));
+        ebr.appendChild(btn('Cancel','btn bm sm',function(){editingId=null;renderList();}));
+        card.appendChild(ebr);
+      } else {
+        // ── VIEW MODE ──
+        card.innerHTML='<div style="font-weight:700;font-size:14px">'+h.name+'</div><div style="font-size:11px;color:#8A8090;margin-top:4px">📍 '+h.place+'  '+'★'.repeat(h.stars||3)+'</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><span class="badge" style="background:'+cc+'22;color:'+cc+'">'+h.cat+'</span><span style="font-size:11px">📞 '+(h.ph||'—')+'</span></div><div style="font-size:11px;color:#3498DB;margin-top:4px">✉️ '+(h.em||'—')+'</div>';
+        var btnRow=el('div');btnRow.style.cssText='display:flex;gap:8px;margin-top:8px';
+        btnRow.appendChild(btn('✏️ Edit','btn sm bn',function(){editingId=h.id;renderList();}));
+        btnRow.appendChild(btn('Remove','btn sm or',function(){saveHotels(APP.hotels.filter(function(x){return x.id!==h.id;}));go('hotels');}));
+        card.appendChild(btnRow);
+      }
+      listWrap.appendChild(card);
+    });
+  }
+  renderList();
+  return wrap;
+}
+
+function bSyncPage(){
+  var wrap=el('div');
+  wrap.appendChild(div('font-size:18px;font-weight:800;color:#D4A843;margin-bottom:6px','📡 Sync & Storage'));
+
+  // Status card
+  var sc=el('div');sc.className='card';sc.style.cssText='border:1.5px solid '+(APP.online?'#2ECC71':'#E67E22')+'44;margin-bottom:14px';
+  sc.innerHTML='<div style="font-size:14px;font-weight:700;color:'+(APP.online?'#2ECC71':'#E67E22')+';margin-bottom:6px">'+(APP.online?'🟢 Desktop Server Connected':'🟡 Offline Mode')+'</div>'
+    +'<div style="font-size:12px;color:#8A8090;line-height:1.6">'
+    +(APP.online
+      ?'Data saves to <b style="color:#D4A843">data/bookings.json</b> on Desktop.<br>Mobile changes sync automatically when connected.'
+      :'No server found. Data saves to <b style="color:#D4A843">mobile browser storage</b>.<br>Connect to Desktop WiFi to sync.')
+    +'</div>';
+  wrap.appendChild(sc);
+
+  if(APP.online){
+    var syncCard=el('div');syncCard.className='card';syncCard.style.marginBottom='12px';
+    syncCard.appendChild(div('font-size:14px;font-weight:700;color:#2ECC71;margin-bottom:8px','⟳ WiFi Sync'));
+    syncCard.appendChild(div('font-size:12px;color:#8A8090;margin-bottom:10px','Mobile local data will be merged with Desktop data/bookings.json. Newer record wins.'));
+    syncCard.appendChild(btn('Sync Now','btn gn',doSync));
+    if(APP.serverIp){
+      syncCard.appendChild(div('font-size:11px;color:#8A8090;margin-top:8px','Connected to: http://'+APP.serverIp+':7842'));
+    }
+    wrap.appendChild(syncCard);
+    // Import button for online mode (to import from offline file)
+    var impCard=el('div');impCard.className='card';impCard.style.cssText='margin-bottom:12px;border:1.5px solid #3498DB44';
+    impCard.appendChild(div('font-size:14px;font-weight:700;color:#3498DB;margin-bottom:4px','📥 Offline Data Import'));
+    impCard.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Mobile offline file (content://) માંથી Export કરેલો data અહીં paste કરો — Desktop સાથે merge થઈ જશે'));
+    impCard.appendChild(btn('📥 Import & Merge','btn bn',doImport));
+    wrap.appendChild(impCard);
+  } else {
+    // Manual IP connect card
+    var ipCard=el('div');ipCard.className='card';ipCard.style.cssText='margin-bottom:12px;border:1.5px solid #D4A84344';
+    ipCard.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:6px','🖥️ Desktop Server Connect કરો'));
+    ipCard.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Automatic ન થાય તો Desktop ની IP manually enter કરો — CMD → ipconfig → IPv4 Address'));
+    var scanBtn=btn('🔍 Auto-Find Desktop (Scan WiFi)','btn sm bn',function(){
+      scanBtn.textContent='🔍 Scanning...';scanBtn.disabled=true;
+      scanNetwork(true).then(function(found){
+        scanBtn.textContent='🔍 Auto-Find Desktop (Scan WiFi)';scanBtn.disabled=false;
+        if(found){doSync();go('sync');}
+      });
+    });
+    scanBtn.style.marginBottom='10px';
+    ipCard.appendChild(scanBtn);
+    var ipRow=el('div');ipRow.style.cssText='display:flex;gap:8px;align-items:center';
+    var ipInp=el('input');ipInp.className='inp';ipInp.placeholder='192.168.29.61';
+    ipInp.value=SAVED_IP||'192.168.29.61';
+    ipInp.style.flex='1';
+    var conBtn=btn('🔗 Connect','btn bg',function(){
+      var ip=ipInp.value.trim();
+      if(!ip){toast('IP enter કરો',false);return;}
+      SAVED_IP=ip;LS.s('serverIp',ip);
+      APP.serverIp=ip;
+      toast('Connecting...');
+      checkServer().then(function(ok){
+        if(ok){toast('✅ Desktop connected!');doSync();go('sync');}
+        else{toast('❌ Connect ન થઈ — Desktop server ચાલુ છે?',false);}
+      });
+    });
+    ipRow.appendChild(ipInp);ipRow.appendChild(conBtn);
+    ipCard.appendChild(ipRow);
+    wrap.appendChild(ipCard);
+
+    // WiFi instructions
+    var wCard=el('div');wCard.className='card';wCard.style.marginBottom='12px';
+    wCard.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:10px','📋 Steps:'));
+    ['1. Desktop પર START_MISHRI_CRM.bat ચાલુ કરો','2. Desktop CMD માં ipconfig → IPv4 Address note કરો','3. ઉપર IP enter કરી Connect tap કરો','4. WiFi પર auto-sync, Mobile Data પર offline mode'].forEach(function(t){var d=el('div');d.style.cssText='font-size:12px;color:#E8E0D0;padding:7px 0;border-bottom:1px solid #2A2D3A44;line-height:1.5';d.textContent=t;wCard.appendChild(d);});
+    wrap.appendChild(wCard);
+  }
+
+  // ── MANUAL EXPORT/IMPORT ──────────────────────────────────
+  var xCard=el('div');xCard.className='card';xCard.style.cssText='margin-bottom:12px;border:1.5px solid #D4A84344';
+  xCard.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:4px','📤 Manual Transfer'));
+  xCard.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:12px','WiFi ન હોય ત્યારે — Mobile Data પર data transfer કરો'));
+  var expSec=el('div');expSec.style.cssText='background:#0F1117;border-radius:8px;padding:10px;margin-bottom:8px';
+  expSec.appendChild(div('font-size:12px;font-weight:700;color:#2ECC71;margin-bottom:4px','📱 → 🖥️  Mobile થી Desktop'));
+  expSec.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:8px','Mobile offline file માં data છે? Export કરો → Desktop માં Import કરો'));
+  expSec.appendChild(btn('📤 Export (Mobile Data Copy કરો)','btn gn',doExport));
+  xCard.appendChild(expSec);
+  var impSec=el('div');impSec.style.cssText='background:#0F1117;border-radius:8px;padding:10px';
+  impSec.appendChild(div('font-size:12px;font-weight:700;color:#3498DB;margin-bottom:4px','🖥️ → 📱  Desktop થી Mobile'));
+  impSec.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:8px','Desktop નો data Mobile માં લાવવો છે? Desktop Export → અહીં Import'));
+  impSec.appendChild(btn('📥 Import (Desktop Data Paste કરો)','btn bn',doImport));
+  xCard.appendChild(impSec);
+  wrap.appendChild(xCard);
+
+  // How data works
+  var hCard=el('div');hCard.className='card';
+  hCard.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:10px','💾 Data Storage'));
+  hCard.innerHTML+=''
+    +'<div style="background:#0F1117;border-radius:8px;overflow:hidden">'
+    +'<div style="padding:10px 12px;border-bottom:1px solid #2A2D3A"><div style="font-size:12px;font-weight:700;color:#E8E0D0;margin-bottom:3px">🖥️ Desktop (Server ON)</div><div style="font-size:11px;color:#8A8090">data/bookings.json — permanent file</div><div style="font-size:11px;color:#2ECC71">✅ Never lost, editable in Notepad</div></div>'
+    +'<div style="padding:10px 12px;border-bottom:1px solid #2A2D3A"><div style="font-size:12px;font-weight:700;color:#E8E0D0;margin-bottom:3px">📱 Mobile (Offline)</div><div style="font-size:11px;color:#8A8090">Browser localStorage — works without server</div><div style="font-size:11px;color:#E67E22">⚠ Clear browser = data lost (sync first!)</div></div>'
+    +'<div style="padding:10px 12px"><div style="font-size:12px;font-weight:700;color:#E8E0D0;margin-bottom:3px">🔄 When WiFi connects</div><div style="font-size:11px;color:#8A8090">Auto-merge — newer record wins — both synced</div><div style="font-size:11px;color:#2ECC71">✅ No data lost from either device</div></div>'
+    +'</div>';
+  wrap.appendChild(hCard);
+  return wrap;
+}
+
+// ── LOGIN SCREEN (cloud mode only) ────────────────────────────
+function showLoginScreen(msg){
+  var old=document.getElementById('loginScreen');if(old)old.remove();
+  var wrap=document.createElement('div');
+  wrap.id='loginScreen';
+  wrap.style.cssText='position:fixed;inset:0;background:#0F1117;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  wrap.innerHTML=''
+    +'<div style="width:100%;max-width:340px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">✈️</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:22px">Enter password to continue</div>'
+    +(msg?'<div style="color:#E74C3C;font-size:12px;margin-bottom:12px">'+msg+'</div>':'')
+    +'<input type="password" id="loginPass" placeholder="Password" style="width:100%;padding:12px 14px;border-radius:8px;border:1.5px solid #2A2D3A;background:#1A1D27;color:#E8E0D0;font-size:14px;margin-bottom:12px;box-sizing:border-box">'
+    +'<button id="loginBtn" style="width:100%;padding:12px;border-radius:8px;border:none;background:#D4A843;color:#1a1d27;font-weight:700;font-size:14px;cursor:pointer">Unlock</button>'
+    +'</div>';
+  document.body.appendChild(wrap);
+  var passInput=document.getElementById('loginPass');
+  var goBtn=document.getElementById('loginBtn');
+  function attempt(){
+    var pw=passInput.value;
+    if(!pw)return;
+    goBtn.textContent='Checking...';goBtn.disabled=true;
+    fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res.ok&&res.token){
+          APP.authToken=res.token;LS.s('authToken',res.token);
+          wrap.remove();
+          init();
+        } else {
+          goBtn.textContent='Unlock';goBtn.disabled=false;
+          showLoginScreen(res.error||'Wrong password');
+        }
+      }).catch(function(){
+        goBtn.textContent='Unlock';goBtn.disabled=false;
+        showLoginScreen('Network error — check internet connection');
+      });
+  }
+  goBtn.onclick=attempt;
+  passInput.onkeydown=function(e){if(e.key==='Enter')attempt();};
+  passInput.focus();
+}
+
+// ── BOOT: password gate active for hosted/cloud mode (data safety) ──
+function boot(){
+  if(REQUIRES_LOGIN && !APP.authToken){
+    showLoginScreen();
+  } else {
+    init();
+  }
+}
+
+
+// ── BOOT ────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
