@@ -34,21 +34,33 @@ window.addEventListener('beforeinstallprompt',function(e){
 html,body{height:100%;background:#0F1117;color:#E8E0D0;font-family:'Segoe UI',Arial,sans-serif}
 input,select,button{font-family:inherit}
 #app{display:flex;flex-direction:column;height:100dvh}
-#hdr{background:#1A1D27;border-bottom:1px solid #2A2D3A;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:50}
-#content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 90px}
-#nav{position:fixed;bottom:0;left:0;right:0;background:#1A1D27;border-top:1px solid #2A2D3A;display:grid;grid-template-columns:repeat(4,1fr);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.ni{display:flex;flex-direction:column;align-items:center;padding:8px 2px;cursor:pointer;color:#8A8090;font-size:10px;gap:2px;border:none;background:none;width:100%}
-.ni.on{color:#D4A843}.ni .ic{font-size:20px}
-@media(min-width:768px){#content{max-width:960px;margin:0 auto;padding:20px 24px 40px}}
+#hdr{background:#1A1D27;border-bottom:1px solid #2A2D3A;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:50}
+#content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 96px;scroll-behavior:smooth}
+#content.form-open{padding-bottom:88px}
+/* Bottom nav — bigger thumb targets, clear active state, safe-area aware */
+#nav{position:fixed;bottom:0;left:0;right:0;background:#1A1D27;border-top:1px solid #2A2D3A;display:grid;grid-template-columns:repeat(4,1fr);z-index:100;padding-bottom:env(safe-area-inset-bottom);height:calc(62px + env(safe-area-inset-bottom))}
+.ni{display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#8A8090;font-size:10.5px;gap:3px;border:none;background:none;width:100%;min-height:56px;position:relative;transition:color .15s ease}
+.ni:active{transform:scale(0.93)}
+.ni.on{color:#D4A843}
+.ni.on::before{content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);width:26px;height:3px;border-radius:3px;background:#D4A843}
+.ni .ic{font-size:22px;line-height:1}
+/* Sticky Save/Cancel bar shown while editing a booking — always one thumb-tap away */
+#formBar{position:fixed;left:0;right:0;bottom:0;z-index:110;background:#1A1D27;border-top:1px solid #2A2D3A;display:none;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -6px 18px rgba(0,0,0,.4)}
+#formBar .btn{flex:1;min-height:48px;font-size:14.5px}
+@media(min-width:768px){#content{max-width:960px;margin:0 auto;padding:20px 24px 40px}#formBar>div{max-width:960px;margin:0 auto;width:100%;display:flex;gap:10px}}
 .card{background:#1A1D27;border:1px solid #2A2D3A;border-radius:10px;padding:12px;margin-bottom:10px}
-.inp{width:100%;background:#0F1117;border:1px solid #2A2D3A;border-radius:7px;padding:9px 11px;color:#E8E0D0;font-size:14px;outline:none}
-.inp:focus{border-color:#D4A843}
-.sel{width:100%;background:#1A1D27;border:1px solid #2A2D3A;border-radius:7px;padding:9px 11px;color:#E8E0D0;font-size:14px;outline:none}
-.lbl{font-size:11px;color:#8A8090;margin-bottom:3px;display:block}
-.fld{margin-bottom:10px}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid transparent;white-space:nowrap}
-.sm{border-radius:16px;padding:6px 12px;font-size:12px}
+/* Forms — bigger fields, roomier spacing, clearer focus state (fewer mis-taps) */
+.inp{width:100%;background:#0F1117;border:1.5px solid #2A2D3A;border-radius:9px;padding:12px 13px;color:#E8E0D0;font-size:15px;outline:none;min-height:46px;transition:border-color .15s ease}
+.inp:focus{border-color:#D4A843;box-shadow:0 0 0 3px #D4A84322}
+.sel{width:100%;background:#1A1D27;border:1.5px solid #2A2D3A;border-radius:9px;padding:12px 13px;color:#E8E0D0;font-size:15px;outline:none;min-height:46px}
+.sel:focus{border-color:#D4A843;box-shadow:0 0 0 3px #D4A84322}
+.lbl{font-size:11.5px;color:#8A8090;margin-bottom:5px;display:block;font-weight:600}
+.fld{margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Buttons — 44px+ tap target per mobile accessibility guidelines, tactile press feedback */
+.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:9px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid transparent;white-space:nowrap;min-height:46px;transition:transform .08s ease,opacity .15s ease}
+.btn:active{transform:scale(0.96);opacity:0.9}
+.sm{border-radius:16px;padding:8px 14px;font-size:12.5px;min-height:38px}
 .bg{background:#D4A843;color:#1a1d27;border-color:#D4A843}
 .og{background:transparent;color:#D4A843;border-color:#D4A843}
 .ob{background:transparent;color:#3498DB;border-color:#3498DB}
@@ -58,20 +70,29 @@ input,select,button{font-family:inherit}
 .bn{background:#3498DB;color:#fff;border-color:#3498DB}
 .pp{background:#9B59B6;color:#fff;border-color:#9B59B6}
 .o2{background:#E67E22;color:#fff;border-color:#E67E22}
-.tabs{display:flex;overflow-x:auto;border-bottom:1px solid #2A2D3A;background:#0F1117;-webkit-overflow-scrolling:touch}
-.tb{padding:9px 13px;font-size:12px;font-weight:600;background:transparent;border:none;border-bottom:2px solid transparent;color:#8A8090;cursor:pointer;white-space:nowrap;flex-shrink:0}
+/* Tab bar — sticky so switching tabs never requires scrolling back up */
+.tabs{display:flex;overflow-x:auto;border-bottom:1px solid #2A2D3A;background:#12141c;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:20}
+.tb{padding:13px 15px;font-size:12.5px;font-weight:600;background:transparent;border:none;border-bottom:2.5px solid transparent;color:#8A8090;cursor:pointer;white-space:nowrap;flex-shrink:0;min-height:44px}
 .tb.on{color:#D4A843;border-bottom-color:#D4A843}
 .badge{font-size:10px;border-radius:8px;padding:2px 7px}
 .row{display:flex;justify-content:space-between;align-items:center}
 .toast{position:fixed;bottom:75px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:16px;font-size:13px;font-weight:600;z-index:9999;white-space:nowrap;pointer-events:none}
 .sect{font-size:11px;font-weight:700;color:#8A8090;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid #2A2D3A}
 .hblock{border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid #2A2D3A}
-.mkbtn{flex:1;padding:9px 4px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid;text-align:center}
+.mkbtn{flex:1;padding:11px 4px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;border:1.5px solid;text-align:center;min-height:44px}
 .syncbadge{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600}
 table th,table td{vertical-align:middle}
 table td .inp,table td .sel{min-width:60px}
-details summary{outline:none}
+details summary{outline:none;min-height:32px;display:flex;align-items:center}
 details summary::-webkit-details-marker{color:#D4A843}
+/* Prev/Next quick tab-nav row at the bottom of each form tab (faster linear nav, less scrolling to reach the tab bar) */
+.tabnav{display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #2A2D3A}
+.tabnav .btn{flex:1;min-height:46px}
+/* Loading spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:28px;height:28px;border:3px solid #2A2D3A;border-top-color:#D4A843;border-radius:50%;animation:spin .7s linear infinite}
+.spinner.sm{width:16px;height:16px;border-width:2px}
+.loadwrap{display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:12px;color:#8A8090;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -87,7 +108,8 @@ details summary::-webkit-details-marker{color:#D4A843}
       <button class="btn bg sm" id="hdrNew">+ New</button>
     </div>
   </div>
-  <div id="content"><div style="display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:12px;color:#8A8090"><div style="font-size:32px">✈</div><div>Loading...</div></div></div>
+  <div id="content"><div class="loadwrap"><div class="spinner"></div><div>Loading...</div></div></div>
+  <div id="formBar"><div><button class="btn bm" id="formBarCancel">Cancel</button><button class="btn bg" id="formBarSave">💾 Save</button></div></div>
   <nav id="nav">
     <button class="ni on" data-p="dash"><span class="ic">📊</span><span>Home</span></button>
     <button class="ni" data-p="list"><span class="ic">📋</span><span>Bookings</span></button>
@@ -536,6 +558,11 @@ function newBk(){
     inclusions:['Hotel accommodation as per selected option','Vehicle as per itinerary with driver bata','Meal plan as per hotel (CP/MAP/AP)','Toll, parking and driver allowance','All airport and railway station transfers','Sightseeing as per itinerary','Children below 5 yrs: Complimentary (no bed)'],
     exclusions:['Air / train / bus ticket fare','Entry fees and monument tickets','Personal expenses and laundry','Travel and medical insurance','Tips to driver and hotel staff','Adventure activities and permits','Anything not mentioned in inclusions'],
     status:'Quotation',paymentReceived:0,notes:'',
+    // Feature (6): manual invoice line items — empty array means "use auto-calculated
+    // Tour Package rows"; once the user edits anything here it overrides those rows.
+    invoiceItems:[],
+    // Feature (7): payment receipt fields
+    paymentMode:'Cash',receivedBy:'',paymentDate:'',receiptNo:'',
     createdAt:now(),updatedAt:now()
   };
 }
@@ -997,15 +1024,32 @@ function btn(txt,cls,fn){var b=el('button');b.className='btn '+cls;b.textContent
 function g2(items){var g=el('div');g.className='g2';items.forEach(function(i){g.appendChild(i);});return g;}
 
 // ── NAVIGATION ──────────────────────────────────────────────
-function go(page){
+function go(page,skipFetch){
   APP.page=page;
   document.querySelectorAll('.ni').forEach(function(b){b.classList.toggle('on',b.dataset.p===page||(page==='form'&&b.dataset.p==='list'));});
   var c=document.getElementById('content');c.innerHTML='';c.scrollTop=0;
-  if(page==='dash') loadBookings().then(function(){c.innerHTML='';c.appendChild(bDash());});
-  else if(page==='list') loadBookings().then(function(){c.innerHTML='';c.appendChild(bList());});
+  var nav=document.getElementById('nav'),fb=document.getElementById('formBar');
+  // One-hand UX: while editing a booking, swap the bottom tab bar for a sticky
+  // Cancel/Save action bar so the primary action is always one thumb-tap away —
+  // no scrolling to the bottom of a long form required.
+  if(page==='form'){ nav.style.display='none'; fb.style.display='flex'; c.classList.add('form-open'); }
+  else { nav.style.display='grid'; fb.style.display='none'; c.classList.remove('form-open'); }
+  // Perf fix (1): right after a save, APP.bookings is already up to date locally —
+  // re-fetching from the server here just adds a slow network round-trip before the
+  // list re-appears. skipFetch=true renders instantly from local memory instead, and
+  // a background sync (already triggered by saveBooking) reconciles with the server.
+  if(page==='dash'){ if(skipFetch){c.innerHTML='';c.appendChild(bDash());} else{ showLoading(c); loadBookings().then(function(){c.innerHTML='';c.appendChild(bDash());}); } }
+  else if(page==='list'){ if(skipFetch){c.innerHTML='';c.appendChild(bList());} else{ showLoading(c); loadBookings().then(function(){c.innerHTML='';c.appendChild(bList());}); } }
   else if(page==='form') c.appendChild(bForm());
-  else if(page==='hotels') loadHotels().then(function(){c.innerHTML='';c.appendChild(bHotels());});
+  else if(page==='hotels'){ showLoading(c); loadHotels().then(function(){c.innerHTML='';c.appendChild(bHotels());}); }
   else if(page==='sync') c.appendChild(bSyncPage());
+}
+// Loading spinner shown while a page waits on a network/storage call — replaces the
+// old bare "Loading..." text so waits feel responsive instead of frozen.
+function showLoading(container){
+  container.innerHTML='';
+  var d=el('div');d.className='loadwrap';d.innerHTML='<div class="spinner"></div><div>Loading...</div>';
+  container.appendChild(d);
 }
 
 document.querySelectorAll('.ni').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.p);});});
@@ -1254,7 +1298,7 @@ function makeQuot(b,on){
     +'<div style="background:#1a1d27;color:#D4A843;padding:6px 12px;font-weight:800;font-size:10px;letter-spacing:0.5px;text-align:center">'+vehicleTypeLabel(vehs)+'</div>'
     +'<div style="padding:14px 12px;text-align:center;background:linear-gradient(135deg,#fff8e0,#fef3c7)">'
     +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
-    +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:26px;font-weight:900;color:#B8892F;margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:12px;font-weight:600"> / person</span></div>'
+    +'<div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#B8892F;margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:12px;font-weight:600"> / person</span></div>'
     +(c.chargeableChild>0?'<div style="font-size:10px;color:#8B4513;margin-top:4px">+ '+fmt(c.perChild)+'/- per Child &times; '+c.chargeableChild+'</div>':'')
     +'<div style="font-size:10px;color:#555;margin-top:6px;border-top:1px dashed #D4A84388;padding-top:6px">Total Package: <b style="color:#1a1d27">'+fmt(c.grandTotal)+'/-</b></div>'
     +'</div></div>'
@@ -1346,7 +1390,7 @@ function makeMultiQuot(b, options){
       +'<div style="background:'+cols[on]+';color:#fff;padding:6px 12px;font-weight:800;font-size:10.5px;letter-spacing:0.5px">OPTION '+on+' — '+hotelNamesForCard+'</div>'
       +'<div style="padding:14px 12px;text-align:center">'
       +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
-      +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:22px;font-weight:900;color:'+cols[on]+';margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:11px;font-weight:600"> / person</span></div>'
+      +'<div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:'+cols[on]+';margin-top:3px">'+fmt(c.perAdult)+'<span style="font-size:11px;font-weight:600"> / person</span></div>'
       +(c.chargeableChild>0?'<div style="font-size:9.5px;color:#8B4513;margin-top:4px">+ '+fmt(c.perChild)+'/- per Child &times; '+c.chargeableChild+'</div>':'')
       +'<div style="font-size:9.5px;color:#555;margin-top:6px;border-top:1px dashed '+cols[on]+'66;padding-top:6px">Total Package: <b style="color:#1a1d27">'+fmt(c.grandTotal)+'/-</b></div>'
       +(c.maxExtraMattress>0?'<div style="font-size:8.5px;color:#8B4513;margin-top:3px">Incl. '+c.maxExtraMattress+' Extra Mattress</div>':'')
@@ -1436,24 +1480,44 @@ function makeVouch(b){
   // Previously any slot with just a Pick-Up/Drop value (even without a vehicle type)
   // was treated as a separate vehicle, causing a duplicate/blank row with repeated
   // Pick-Up & Drop info in the voucher.
-  var vehs=(b.vehicles||[]).filter(function(v){return v.type;});
+  // Bug fix (2): previously a vehicle row needed a "Type" to appear, so a Cab Number
+  // entered without a Type never showed up in the voucher at all. Now a row shows if
+  // EITHER Type or Cab Number is filled in.
+  var vehs=(b.vehicles||[]).filter(function(v){return v.type||v.vehicleNo;});
   var hr='',vr='',ir='';
+  var missingConfirmNo=false;
   hotels.forEach(function(h){
-    // Bug fix (1): show per-hotel Confirmation No., Address and Contact Number
+    // Bug fix (1): show per-hotel Address and Contact Number as subtext
     var hotelSub=[];
-    if(h.confirmNo) hotelSub.push('Conf. No: '+h.confirmNo);
     if(h.phone) hotelSub.push('\u260E '+h.phone);
     var hotelSubHtml=hotelSub.length?'<br><span style="font-size:8.5px;color:#666">'+hotelSub.join(' &bull; ')+'</span>':'';
     var placeHtml=h.place+(h.address?'<br><span style="font-size:8.5px;color:#666">'+h.address+'</span>':'');
     // Bug fix (5): show Check-in / Check-out TIME alongside the date
     var checkInHtml=fmtD(h.checkIn)+(h.checkInTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkInTime)+'</span>':'');
     var checkOutHtml=fmtD(h.checkOut)+(h.checkOutTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkOutTime)+'</span>':'');
-    hr+='<tr><td><b>'+h.hotelName+'</b>'+hotelSubHtml+'</td><td>'+placeHtml+'</td><td>'+checkInHtml+'</td><td>'+checkOutHtml+'</td><td>'+nts(h.checkIn,h.checkOut)+'</td><td>'+mealLabel(h.mealPlan)+'</td></tr>';
+    // Bug fix (3): Room Category now shown as its own column (was missing entirely).
+    // Bug fix (5): Confirmation No. now shown as its own bold column instead of tiny
+    // grey subtext, so it doesn't get missed — and it's flagged if left blank.
+    if(!h.confirmNo) missingConfirmNo=true;
+    var confHtml=h.confirmNo?('<b style="color:#1a7a3a">'+h.confirmNo+'</b>'):'';
+    hr+='<tr><td><b>'+h.hotelName+'</b>'+hotelSubHtml+'</td><td>'+(h.roomCat||'\u2014')+'</td><td>'+placeHtml+'</td><td>'+checkInHtml+'</td><td>'+checkOutHtml+'</td><td>'+nts(h.checkIn,h.checkOut)+'</td><td>'+mealLabel(h.mealPlan)+'</td><td>'+confHtml+'</td></tr>';
   });
   // Bug fix (2): show the Vehicle / Cab Number alongside the vehicle type
   vehs.forEach(function(v){vr+='<tr><td>'+v.type+'</td><td>'+(v.vehicleNo||'\u2014')+'</td><td>'+v.from+'</td><td>'+v.to+'</td></tr>';});
   (b.itinerary||[]).forEach(function(d,i){if(d)ir+='<tr><td style="font-weight:bold;background:#f5f5f5;white-space:nowrap;font-size:10px">Day '+(i+1)+'</td><td>'+d+'</td></tr>';});
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10.5px;color:#333}.pg{padding:8mm 12mm}.hd{background:#1a1d27;color:#fff;padding:12px 16px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.lo{font-size:16px;font-weight:900;color:#D4A843}.st{background:#D4A843;color:#1a1d27;padding:3px 9px;font-weight:bold;font-size:10px;border-radius:3px;margin:10px 0 6px;display:inline-block}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.ir{display:flex;gap:4px;margin-bottom:2px}.lb{font-weight:bold;min-width:110px;color:#555;font-size:10px}.vl{font-size:10px}table{width:100%;border-collapse:collapse}th{background:#2c2c3e;color:#D4A843;padding:5px 6px;font-size:9px;text-align:left}td{padding:4px 6px;border:1px solid #e5e5e5;font-size:10px}.imp{background:#fff3cd;border:1px solid #D4A843;border-radius:3px;padding:8px;margin:10px 0;font-size:10px}.ft{margin-top:14px;border-top:1px solid #D4A843;padding-top:8px;text-align:center;font-size:9px;color:#666}@media print{.pg{padding:5mm 8mm}}</style></head><body><div class="pg"><div class="hd"><div><div class="lo">&#9992; MISHRI HOLIDAYS</div><div style="font-size:9px;color:#ccc">Travel Voucher &mdash; Confirmed Booking</div></div><div style="background:#D4A843;color:#1a1d27;padding:5px 14px;border-radius:4px;font-weight:bold;font-size:13px">VOUCHER</div></div><div class="g2"><div><div class="st">BOOKING</div><div class="ir"><span class="lb">Ref No.:</span><span class="vl"><b>'+(b.bookingRef||b.quotNo)+'</b></span></div><div class="ir"><span class="lb">Booking Date:</span><span class="vl">'+fmtD(b.bookingDate)+'</span></div><div class="ir"><span class="lb">Tour Start:</span><span class="vl">'+fmtD(b.startDate)+'</span></div><div class="ir"><span class="lb">Tour End:</span><span class="vl">'+fmtD(b.endDate)+'</span></div><div class="ir"><span class="lb">Destination:</span><span class="vl">'+b.destination+'</span></div></div><div><div class="st">GUEST</div><div class="ir"><span class="lb">Name:</span><span class="vl"><b>'+b.guestName+'</b></span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+b.contact+'</span></div><div class="ir"><span class="lb">Adults/Children:</span><span class="vl">'+b.adults+'/'+b.children+'</span></div><div class="ir"><span class="lb">Rooms:</span><span class="vl">'+b.rooms+'</span></div>'+(c.maxExtraMattress>0?'<div class="ir"><span class="lb">Extra Mattress:</span><span class="vl">'+c.maxExtraMattress+'</span></div>':'')+'</div></div><div class="st">HOTEL CONFIRMATIONS</div><table><tr><th>Hotel</th><th>Place</th><th>Check In</th><th>Check Out</th><th>Nights</th><th>Meal</th></tr>'+hr+'</table>'+(vr?'<div class="st">VEHICLE &amp; TRANSPORT</div><table><tr><th>Vehicle</th><th>Vehicle / Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+vr+'</table>':'')+'<div class="st">DRIVER</div><div class="g2"><div><div class="ir"><span class="lb">Driver:</span><span class="vl">'+(b.driverName||'—')+'</span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+(b.driverContact||'—')+'</span></div></div></div>'+(ir?'<div class="st">ITINERARY</div><table>'+ir+'</table>':'')+'<div class="imp"><b>&#9888; IMPORTANT:</b> Carry this voucher with a valid photo ID. Please refer to each hotel&rsquo;s check-in / check-out time shown above.</div><div class="ft">Thank you for choosing <b>Mishri Holidays</b></div></div></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10.5px;color:#333}.pg{padding:8mm 12mm}.hd{background:#1a1d27;color:#fff;padding:12px 16px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.lo{font-size:16px;font-weight:900;color:#D4A843}.st{background:#D4A843;color:#1a1d27;padding:3px 9px;font-weight:bold;font-size:10px;border-radius:3px;margin:10px 0 6px;display:inline-block}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.ir{display:flex;gap:4px;margin-bottom:2px}.lb{font-weight:bold;min-width:110px;color:#555;font-size:10px}.vl{font-size:10px}table{width:100%;border-collapse:collapse}th{background:#2c2c3e;color:#D4A843;padding:5px 6px;font-size:9px;text-align:left}td{padding:4px 6px;border:1px solid #e5e5e5;font-size:10px}.imp{background:#fff3cd;border:1px solid #D4A843;border-radius:3px;padding:8px;margin:10px 0;font-size:10px}.ft{margin-top:14px;border-top:1px solid #D4A843;padding-top:8px;text-align:center;font-size:9px;color:#666}@media print{.pg{padding:5mm 8mm}}</style></head><body><div class="pg"><div class="hd"><div><div class="lo">&#9992; MISHRI HOLIDAYS</div><div style="font-size:9px;color:#ccc">Travel Voucher &mdash; Confirmed Booking</div></div><div style="background:#D4A843;color:#1a1d27;padding:5px 14px;border-radius:4px;font-weight:bold;font-size:13px">VOUCHER</div></div><div class="g2"><div><div class="st">BOOKING</div><div class="ir"><span class="lb">Ref No.:</span><span class="vl"><b>'+(b.bookingRef||b.quotNo)+'</b></span></div><div class="ir"><span class="lb">Booking Date:</span><span class="vl">'+fmtD(b.bookingDate)+'</span></div><div class="ir"><span class="lb">Tour Start:</span><span class="vl">'+fmtD(b.startDate)+'</span></div><div class="ir"><span class="lb">Tour End:</span><span class="vl">'+fmtD(b.endDate)+'</span></div><div class="ir"><span class="lb">Destination:</span><span class="vl">'+b.destination+'</span></div></div><div><div class="st">GUEST</div><div class="ir"><span class="lb">Name:</span><span class="vl"><b>'+b.guestName+'</b></span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+b.contact+'</span></div><div class="ir"><span class="lb">Adults/Children:</span><span class="vl">'+b.adults+'/'+b.children+'</span></div><div class="ir"><span class="lb">Rooms:</span><span class="vl">'+b.rooms+'</span></div>'+(c.maxExtraMattress>0?'<div class="ir"><span class="lb">Extra Mattress:</span><span class="vl">'+c.maxExtraMattress+'</span></div>':'')+'</div></div><div class="st">HOTEL CONFIRMATIONS</div><table><tr><th>Hotel</th><th>Room Cat.</th><th>Place</th><th>Check In</th><th>Check Out</th><th>Nights</th><th>Meal</th><th>Conf. No.</th></tr>'+hr+'</table>'+(vr?'<div class="st">VEHICLE &amp; TRANSPORT</div><table><tr><th>Vehicle</th><th>Vehicle / Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+vr+'</table>':'')+'<div class="st">DRIVER</div><div class="g2"><div><div class="ir"><span class="lb">Driver:</span><span class="vl">'+(b.driverName||'—')+'</span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+(b.driverContact||'—')+'</span></div></div></div>'+(ir?'<div class="st">ITINERARY</div><table>'+ir+'</table>':'')+(missingConfirmNo?'<div class="imp" style="background:#fdecec;border-color:#c0392b"><b>&#9888; NOTE:</b> One or more hotels above do not have a Confirmation No. yet — please update before sharing this voucher as final.</div>':'')+'<div class="imp"><b>&#9888; IMPORTANT:</b> Carry this voucher with a valid photo ID. Please refer to each hotel&rsquo;s check-in / check-out time shown above.</div><div class="ft">Thank you for choosing <b>Mishri Holidays</b></div></div></body></html>';
+}
+
+// Feature (6): default (auto-calculated) invoice rows, used when the user hasn't
+// customized invoiceItems manually yet.
+function defaultInvoiceItems(b){
+  var on=b.selectedOption||1,c=calcOpt(b,on);
+  var items=[{desc:'Tour Package \u2013 Adult (Option '+on+(b.destination?' \u2013 '+b.destination:'')+')',qty:c.adults,rate:c.perAdult}];
+  if(c.chargeableChild>0) items.push({desc:'Tour Package \u2013 Child',qty:c.chargeableChild,rate:c.perChild});
+  return items;
+}
+function getInvItems(b){
+  return (b.invoiceItems&&b.invoiceItems.length)?b.invoiceItems:defaultInvoiceItems(b);
 }
 
 function makeInv(b){
@@ -1463,12 +1527,12 @@ function makeInv(b){
   var paid=bal<=0;
   var invNo=(b.bookingRef||b.quotNo||'')+'-INV';
   var srNo=0;
-  var rowTotalAdult=c.perAdult*c.adults;
-  var rowTotalChild=c.perChild*c.chargeableChild;
-  var itemRows=
-     '<tr><td class="c">'+(++srNo)+'</td><td>Tour Package &ndash; Adult<div class="isub">Option '+on+' &bull; '+(b.destination||'')+'</div></td><td class="c">'+c.adults+'</td><td class="r">'+fmt(c.perAdult)+'</td><td class="r">'+fmt(rowTotalAdult)+'</td></tr>'
-    +(c.chargeableChild>0?'<tr><td class="c">'+(++srNo)+'</td><td>Tour Package &ndash; Child</td><td class="c">'+c.chargeableChild+'</td><td class="r">'+fmt(c.perChild)+'</td><td class="r">'+fmt(rowTotalChild)+'</td></tr>':'');
-  var displayGrandTotal=rowTotalAdult+rowTotalChild;
+  var invItems=getInvItems(b);
+  var itemRows=invItems.map(function(it){
+    var qty=parseFloat(it.qty)||0,rate=parseFloat(it.rate)||0,tot=qty*rate;
+    return '<tr><td class="c">'+(++srNo)+'</td><td>'+(it.desc||'&mdash;')+'</td><td class="c">'+qty+'</td><td class="r">'+fmt(rate)+'</td><td class="r">'+fmt(tot)+'</td></tr>';
+  }).join('');
+  var displayGrandTotal=invItems.reduce(function(sum,it){return sum+((parseFloat(it.qty)||0)*(parseFloat(it.rate)||0));},0);
   bal=displayGrandTotal-received;
   paid=bal<=0;
 
@@ -1558,6 +1622,114 @@ function makeInv(b){
     +'</div></body></html>';
 }
 
+// Feature (7): amount-in-words helper for the Payment Receipt (Indian numbering)
+function numToWords(num){
+  num=Math.round(num||0);
+  if(num===0) return 'Zero';
+  var neg=num<0; num=Math.abs(num);
+  var ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  var tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function twoDigit(n){ if(n<20) return ones[n]; return (tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:'')).trim(); }
+  function threeDigit(n){ var s=''; if(n>=100){ s+=ones[Math.floor(n/100)]+' Hundred'; n=n%100; if(n) s+=' '; } if(n>0) s+=twoDigit(n); return s; }
+  var crore=Math.floor(num/10000000); num%=10000000;
+  var lakh=Math.floor(num/100000); num%=100000;
+  var thousand=Math.floor(num/1000); num%=1000;
+  var rest=num;
+  var parts=[];
+  if(crore) parts.push(threeDigit(crore)+' Crore');
+  if(lakh) parts.push(threeDigit(lakh)+' Lakh');
+  if(thousand) parts.push(threeDigit(thousand)+' Thousand');
+  if(rest) parts.push(threeDigit(rest));
+  return (neg?'Minus ':'')+parts.join(' ');
+}
+
+// Feature (7): Payment Receipt generator — issued whenever an advance/part/full
+// payment is received against a booking.
+function makeReceipt(b){
+  var on=b.selectedOption||1,c=calcOpt(b,on);
+  var received=parseFloat(b.paymentReceived)||0;
+  var invItems=getInvItems(b);
+  var grandTotal=invItems.reduce(function(sum,it){return sum+((parseFloat(it.qty)||0)*(parseFloat(it.rate)||0));},0);
+  var bal=Math.max(grandTotal-received,0);
+  var rctNo=b.receiptNo||((b.bookingRef||b.quotNo||'')+'-RCT');
+  var rctDate=b.paymentDate||b.bookingDate||b.createdAt;
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
+    +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm;position:relative}'
+    +'.hd{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:3px solid #2ECC71}'
+    +'.logo-name{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:25px;font-weight:900;color:#B8892F;letter-spacing:0.3px}'
+    +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8px;color:#999;margin-top:2px;letter-spacing:1.8px;text-transform:uppercase}'
+    +'.contact-line{font-size:9px;color:#888;margin-top:6px}'
+    +'.inv-tag{text-align:right}'
+    +'.inv-title{font-family:"Playfair Display",Georgia,serif;font-size:26px;font-weight:900;color:#1a1d27;letter-spacing:1px}'
+    +'.inv-meta{font-size:9.5px;color:#666;margin-top:4px}'
+    +'.inv-meta b{color:#1a1d27}'
+    +'.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}'
+    +'.bx{border:1px solid #eee;border-left:3px solid #2ECC71;border-radius:4px;padding:11px 13px;background:#f6fdf9}'
+    +'.bt{font-family:"Poppins",sans-serif;font-size:8.5px;font-weight:700;color:#1e7e42;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}'
+    +'.bx p{font-size:10px;margin-bottom:2px;color:#333}'
+    +'.bx p.name{font-size:12px;font-weight:700;color:#1a1d27}'
+    +'.amt-strip{border:2px solid #2ECC71;border-radius:8px;padding:16px 20px;background:#f3fbf6;text-align:center;margin:14px 0}'
+    +'.amt-strip .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#1e7e42;font-weight:700}'
+    +'.amt-strip .val{font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:#1a1d27;margin-top:4px}'
+    +'.amt-strip .words{font-size:10px;color:#555;margin-top:6px;font-style:italic}'
+    +'table.dt{width:100%;border-collapse:collapse;margin-top:6px}'
+    +'.dt td{padding:6px 8px;font-size:10.5px;border-bottom:1px solid #f0f0f0}'
+    +'.dt td.k{color:#888;width:38%}'
+    +'.dt td.v{font-weight:600;color:#1a1d27}'
+    +'.bal-strip{display:flex;justify-content:space-between;align-items:center;margin-top:16px;border:1.5px solid '+(bal<=0?'#2ECC71':'#B8892F')+';border-radius:6px;padding:12px 16px;background:'+(bal<=0?'#f3fbf6':'#fffaf0')+'}'
+    +'.bal-strip .lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:700}'
+    +'.bal-strip .val{font-size:14px;font-weight:900;color:#1a1d27;margin-top:2px}'
+    +'.terms{background:#f9f9f9;border:1px solid #eee;border-radius:4px;padding:10px 13px;margin-top:16px}'
+    +'.terms-title{font-family:"Poppins",sans-serif;font-weight:700;font-size:9.5px;color:#1a1d27;margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.terms ul{padding-left:14px}.terms li{font-size:9px;color:#666;padding:1.5px 0}'
+    +'.footer{margin-top:20px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center}'
+    +'.footer .thanks{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:12px;color:#B8892F}'
+    +'.footer .sub{font-size:8.5px;color:#aaa;margin-top:2px}'
+    +'.sign{text-align:right;font-size:9.5px;color:#666;margin-top:26px}'
+    +'.sign .ln{border-top:1px solid #999;width:160px;margin:26px 0 4px auto}'
+    +'@media print{.page{padding:5mm 8mm}}'
+    +'</style></head><body><div class="page">'
+
+    +'<div class="hd"><div><div class="logo-name">&#9992; Mishri Holidays</div><div class="logo-sub">Your Holiday Planner</div><div class="contact-line">+91 99981 47184 &nbsp;/&nbsp; +91 79909 17434</div></div>'
+    +'<div class="inv-tag"><div class="inv-title">RECEIPT</div>'
+    +'<div class="inv-meta">Receipt No.: <b>'+rctNo+'</b></div>'
+    +'<div class="inv-meta">Date: <b>'+fmtD(rctDate)+'</b></div>'
+    +'</div></div>'
+
+    +'<div class="g2">'
+    +'<div class="bx"><div class="bt">Received From</div><p class="name">'+b.guestName+'</p><p>'+b.contact+'</p>'+(b.email?'<p>'+b.email+'</p>':'')+'</div>'
+    +'<div class="bx"><div class="bt">Against Booking</div><p>Booking Ref: <b>'+(b.bookingRef||b.quotNo)+'</b></p><p>Destination: '+(b.destination||'—')+'</p><p>'+fmtD(b.startDate)+' &nbsp;&rarr;&nbsp; '+fmtD(b.endDate)+'</p></div>'
+    +'</div>'
+
+    +'<div class="amt-strip"><div class="lbl">Amount Received</div><div class="val">'+fmt(received)+'</div><div class="words">Rupees '+numToWords(received)+' Only</div></div>'
+
+    +'<table class="dt">'
+    +'<tr><td class="k">Payment Mode</td><td class="v">'+(b.paymentMode||'Cash')+'</td></tr>'
+    +'<tr><td class="k">Received By</td><td class="v">'+(b.receivedBy||'Mishri Holidays')+'</td></tr>'
+    +'<tr><td class="k">Total Package Cost</td><td class="v">'+fmt(grandTotal)+'</td></tr>'
+    +'</table>'
+
+    +'<div class="bal-strip"><div><div class="lbl">Balance Due</div><div class="val" style="color:'+(bal<=0?'#1e7e42':'#c0392b')+'">'+fmt(bal)+'</div></div>'
+    +'<div style="text-align:right"><div class="lbl">Status</div><div class="val" style="color:'+(bal<=0?'#1e7e42':'#B8892F')+'">'+(bal<=0?'FULLY PAID':'PART PAYMENT')+'</div></div></div>'
+
+    +'<div class="terms"><div class="terms-title">Notes</div><ul>'
+    +'<li>This receipt confirms payment received towards the above booking; it is not a tax invoice.</li>'
+    +'<li>Please retain this receipt for your records. Contact us for any billing queries.</li>'
+    +'</ul></div>'
+
+    +'<div class="sign"><div class="ln"></div>Authorised Signatory</div>'
+
+    +'<div class="footer"><div><div class="thanks">Thank you for travelling with us</div><div class="sub">This is a computer-generated receipt and is valid without a signature.</div></div>'
+    +'<div style="text-align:right"><div class="logo-name" style="font-size:15px">&#9992; Mishri Holidays</div></div></div>'
+
+    +'</div></body></html>';
+}
+
 // ════════════════════════════════════════════════════════════
 //  PAGE BUILDERS
 // ════════════════════════════════════════════════════════════
@@ -1603,6 +1775,7 @@ function bList(){
         br.appendChild(btn('📄','btn sm ob',function(){openPrint(makeQuot(bk,bk.selectedOption||1),'Quotation_'+bk.quotNo+'.pdf');}));
         br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
         br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
+        br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),'Receipt_'+bk.quotNo+'.pdf');}));
         br.appendChild(btn('Edit','btn sm bg',function(){APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';go('form');}));
         br.appendChild(btn('✕','btn sm or',function(){deleteBooking(bk.quotNo);go('list');}));
       })(b);
@@ -1623,13 +1796,31 @@ function bForm(){
   var tb=el('div');tb.className='tabs';
   var tabs=[{id:'guest',l:'👤 Guest'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'confirm',l:'✅ Confirm'}];
   var tbMap={};var tc=el('div');tc.style.padding='12px';
-  function sw(id){APP.ftab=id;Object.keys(tbMap).forEach(function(k){tbMap[k].classList.toggle('on',k===id);});tc.innerHTML='';tc.appendChild(buildTab(id));}
+  // Faster navigation / less scrolling: a Prev/Next row at the bottom of each tab's
+  // content lets the user move through Guest → Hotels → ... → Confirm with one tap,
+  // right where their thumb already is, instead of reaching back up to the tab bar.
+  function renderTabContent(id){
+    tc.innerHTML='';
+    tc.appendChild(buildTab(id));
+    var idx=tabs.findIndex(function(t){return t.id===id;});
+    var navRow=el('div');navRow.className='tabnav';
+    if(idx>0){ navRow.appendChild(btn('← '+tabs[idx-1].l.replace(/^\S+\s/,''),'btn bm',function(){sw(tabs[idx-1].id);})); }
+    if(idx<tabs.length-1){ navRow.appendChild(btn(tabs[idx+1].l.replace(/^\S+\s/,'')+' →','btn bg',function(){sw(tabs[idx+1].id);})); }
+    tc.appendChild(navRow);
+    tc.scrollIntoView&&tc.parentElement&&(tc.parentElement.scrollTop=0);
+  }
+  function sw(id){APP.ftab=id;Object.keys(tbMap).forEach(function(k){tbMap[k].classList.toggle('on',k===id);});renderTabContent(id);document.getElementById('content').scrollTop=0;}
   tabs.forEach(function(t){var bt=el('button');bt.className='tb'+(APP.ftab===t.id?' on':'');bt.textContent=t.l;bt.addEventListener('click',function(){sw(t.id);});tbMap[t.id]=bt;tb.appendChild(bt);});
-  card.appendChild(tb);card.appendChild(tc);tc.appendChild(buildTab(APP.ftab));wrap.appendChild(card);
-  var ar=el('div');ar.style.cssText='display:flex;gap:10px;justify-content:flex-end;padding-bottom:16px';
-  ar.appendChild(btn('Cancel','btn bm',function(){go('list');}));
-  ar.appendChild(btn('💾 Save','btn bg',function(){saveBooking(APP.edit).then(function(){go('list');});}));
-  wrap.appendChild(ar);return wrap;
+  card.appendChild(tb);card.appendChild(tc);renderTabContent(APP.ftab);wrap.appendChild(card);
+  // Sticky action bar (#formBar, fixed above the safe area) replaces the old inline
+  // Cancel/Save row — always reachable with one thumb, no scrolling needed.
+  var cancelBtn=document.getElementById('formBarCancel'),saveBtn=document.getElementById('formBarSave');
+  cancelBtn.onclick=function(){go('list');};
+  saveBtn.onclick=function(){
+    saveBtn.disabled=true;saveBtn.innerHTML='<span class="spinner sm" style="border-color:#1a1d2755;border-top-color:#1a1d27"></span>';
+    saveBooking(APP.edit).then(function(){go('list',true);}).catch(function(){saveBtn.disabled=false;saveBtn.innerHTML='💾 Save';});
+  };
+  return wrap;
 }
 
 function buildTab(tab){
@@ -1953,6 +2144,15 @@ function buildTab(tab){
     // hotel now has its own Confirmation No. entered on the Hotels tab, which is what
     // actually shows in the voucher's Hotel Confirmations table.
     frag.appendChild(fld('Payment Received (Rs.)',inp(b.paymentReceived,function(v){b.paymentReceived=parseFloat(v)||0;},'number')));
+    // Feature (7): payment receipt details
+    frag.appendChild(g2([
+      fld('Payment Mode',sel(b.paymentMode||'Cash',[{v:'Cash',l:'Cash'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'UPI',l:'UPI'},{v:'Card',l:'Card'},{v:'Cheque',l:'Cheque'}],function(v){b.paymentMode=v;})),
+      fld('Payment Date',inp(b.paymentDate,function(v){b.paymentDate=v;},'date'))
+    ]));
+    frag.appendChild(g2([
+      fld('Received By',inp(b.receivedBy,function(v){b.receivedBy=v;},'text','Staff / Cashier name')),
+      fld('Receipt No. (optional)',inp(b.receiptNo,function(v){b.receiptNo=v;},'text','auto if left blank'))
+    ]));
 
     // Auto-generate voucher button
     var vouchBox=el('div');vouchBox.style.cssText='background:#0F1117;border:1.5px solid #2ECC7144;border-radius:10px;padding:14px;margin-top:14px';
@@ -1976,6 +2176,16 @@ function buildTab(tab){
     });
     vouchBox.appendChild(el('br'));
     vouchBox.appendChild(invBtn);
+
+    // Feature (7): payment receipt button
+    var rctBtn=el('button');rctBtn.className='btn og';rctBtn.style.marginTop='8px';rctBtn.textContent='🧾 Generate Payment Receipt';
+    rctBtn.addEventListener('click',function(){
+      saveBooking(APP.edit).then(function(){
+        openPrint(makeReceipt(APP.edit),'Receipt_'+APP.edit.quotNo+'.pdf');
+      });
+    });
+    vouchBox.appendChild(el('br'));
+    vouchBox.appendChild(rctBtn);
     frag.appendChild(vouchBox);
   }
   else if(tab==='itinerary'){
@@ -1989,25 +2199,66 @@ function buildTab(tab){
   else if(tab==='docs'){
     frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:6px','Generate Documents'));
     frag.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:14px','Tap → Print dialog → Save as PDF'));
-    var dw=el('div');dw.style.cssText='display:flex;flex-direction:column;gap:10px';
+    // Reduce scrolling: 2-column grid instead of one long stacked list — same buttons,
+    // roughly half the vertical space.
+    var dw=el('div');dw.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px';
+    function dlbl(txt){var d=el('div');d.style.cssText='grid-column:1/-1;font-size:11px;color:#8A8090;margin-bottom:-2px;margin-top:6px';d.textContent=txt;return d;}
+    function dbtn(txt,cls,fn){var b=btn(txt,cls,fn);b.style.width='100%';return b;}
     (function(bk){
       // Single option quotations
-      var singleLbl=el('div');singleLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:4px';singleLbl.textContent='Single Option:';dw.appendChild(singleLbl);
-      dw.appendChild(btn('📄 Option 1 Only','btn gn',function(){openPrint(makeQuot(bk,1),'Quotation_Opt1_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('📄 Option 2 Only','btn bn',function(){openPrint(makeQuot(bk,2),'Quotation_Opt2_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('📄 Option 3 Only','btn o2',function(){openPrint(makeQuot(bk,3),'Quotation_Opt3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dlbl('Single Option:'));
+      dw.appendChild(dbtn('📄 Option 1','btn gn',function(){openPrint(makeQuot(bk,1),'Quotation_Opt1_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 2','btn bn',function(){openPrint(makeQuot(bk,2),'Quotation_Opt2_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 3','btn o2',function(){openPrint(makeQuot(bk,3),'Quotation_Opt3_'+bk.quotNo+'.pdf');}));
       // Multi option quotations
-      var multiLbl=el('div');multiLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:10px';multiLbl.textContent='Multiple Options (one PDF):';dw.appendChild(multiLbl);
-      dw.appendChild(btn('📄 Option 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),'Quotation_Opt1_2_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('📄 Option 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),'Quotation_Opt1_3_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('📄 Option 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),'Quotation_Opt2_3_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('📄 All 3 Options Together','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),'Quotation_All_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dlbl('Multiple Options (one PDF):'));
+      dw.appendChild(dbtn('📄 Opt 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),'Quotation_Opt1_2_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),'Quotation_Opt1_3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),'Quotation_Opt2_3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 All 3 Options','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),'Quotation_All_'+bk.quotNo+'.pdf');}));
       // Voucher & Invoice
-      var otherLbl=el('div');otherLbl.style.cssText='font-size:11px;color:#8A8090;margin-bottom:6px;margin-top:10px';otherLbl.textContent='Other Documents:';dw.appendChild(otherLbl);
-      dw.appendChild(btn('🎫 Travel Voucher','btn og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(btn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dlbl('Other Documents:'));
+      dw.appendChild(dbtn('🎫 Voucher','btn og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('🧾 Receipt','btn og',function(){openPrint(makeReceipt(bk),'Receipt_'+bk.quotNo+'.pdf');}));
     })(b);
     frag.appendChild(dw);
+
+    // Feature (6): manual invoice items editor — description, qty & rate can all be
+    // hand-edited here; leave empty/untouched to keep using the auto-calculated
+    // Tour Package rows.
+    var invLbl=el('div');invLbl.style.cssText='font-size:13px;font-weight:700;color:#D4A843;margin-top:20px;margin-bottom:4px';invLbl.textContent='🧾 Invoice Items (editable)';
+    frag.appendChild(invLbl);
+    frag.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Description, Qty ane Rate manually edit / add / delete kari shakay chhe. Khali rakho to auto Tour-Package rate vapraashe.'));
+    var itemsWrap=el('div');
+    function renderItems(){
+      itemsWrap.innerHTML='';
+      var items=(b.invoiceItems&&b.invoiceItems.length)?b.invoiceItems:defaultInvoiceItems(b);
+      items.forEach(function(it,idx){
+        var row=el('div');row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';
+        var dEl=el('input');dEl.className='inp';dEl.style.flex='3';dEl.value=it.desc||'';dEl.placeholder='Description';
+        var qEl=el('input');qEl.className='inp';qEl.style.flex='0.7';qEl.type='number';qEl.value=it.qty;qEl.placeholder='Qty';
+        var rEl=el('input');rEl.className='inp';rEl.style.flex='1';rEl.type='number';rEl.value=it.rate;rEl.placeholder='Rate';
+        function ensureCustom(){if(!b.invoiceItems||!b.invoiceItems.length)b.invoiceItems=defaultInvoiceItems(b);}
+        dEl.addEventListener('input',function(){ensureCustom();b.invoiceItems[idx].desc=dEl.value;});
+        qEl.addEventListener('input',function(){ensureCustom();b.invoiceItems[idx].qty=parseFloat(qEl.value)||0;});
+        rEl.addEventListener('input',function(){ensureCustom();b.invoiceItems[idx].rate=parseFloat(rEl.value)||0;});
+        var delBtn=el('button');delBtn.className='btn sm or';delBtn.textContent='✕';
+        delBtn.addEventListener('click',function(){ensureCustom();b.invoiceItems.splice(idx,1);renderItems();});
+        row.appendChild(dEl);row.appendChild(qEl);row.appendChild(rEl);row.appendChild(delBtn);
+        itemsWrap.appendChild(row);
+      });
+    }
+    renderItems();
+    frag.appendChild(itemsWrap);
+    var itemBtnsRow=el('div');itemBtnsRow.style.cssText='display:flex;gap:8px;margin-top:4px;margin-bottom:6px';
+    itemBtnsRow.appendChild(btn('+ Add Row','btn sm bm',function(){
+      if(!b.invoiceItems||!b.invoiceItems.length)b.invoiceItems=defaultInvoiceItems(b);
+      b.invoiceItems.push({desc:'',qty:1,rate:0});
+      renderItems();
+    }));
+    itemBtnsRow.appendChild(btn('↺ Reset to Auto','btn sm bm',function(){b.invoiceItems=[];renderItems();}));
+    frag.appendChild(itemBtnsRow);
   }
   return frag;
 }
