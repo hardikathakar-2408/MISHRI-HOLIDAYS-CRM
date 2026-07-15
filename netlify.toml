@@ -32,6 +32,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/templates/sync"
+  to = "/.netlify/functions/templates-sync"
+  status = 200
+
+[[redirects]]
   from = "/api/bookings"
   to = "/.netlify/functions/bookings"
   status = 200
@@ -39,6 +44,11 @@
 [[redirects]]
   from = "/api/hotels/save"
   to = "/.netlify/functions/hotels-save"
+  status = 200
+
+[[redirects]]
+  from = "/api/hotels/sync"
+  to = "/.netlify/functions/hotels-sync"
   status = 200
 
 [[redirects]]

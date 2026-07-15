@@ -53,4 +53,28 @@ function requireAuth(event) {
   return true;
 }
 
-module.exports = { CORS, store, APP_PASSWORD, makeToken, verifyToken, requireAuth };
+// ---- delete tombstones (offline-safe deletion) -------------------------
+// A tombstone is {quotNo, deletedAt}. Recorded server-side whenever a booking
+// is deleted (both the immediate online delete and the background sync path),
+// and persisted permanently in the 'bookingTombstones' store key — NOT just
+// applied once and discarded — so that ANY other device, even one that syncs
+// in much later with an older copy of that same booking, has its stale copy
+// suppressed again instead of resurrecting it. Only the newest deletedAt per
+// quotNo is kept. A booking whose own updatedAt is AFTER its deletedAt is
+// treated as an intentional "un-delete" (an edit made after the deletion) and
+// is allowed to survive — same newer-wins rule already used for every other
+// merge conflict in this app.
+function mergeTombstones(existing, incoming) {
+  var map = {};
+  (existing || []).forEach(function (t) { if (t && t.quotNo) map[t.quotNo] = t; });
+  (incoming || []).forEach(function (t) {
+    if (!t || !t.quotNo) return;
+    var cur = map[t.quotNo];
+    if (!cur || new Date(t.deletedAt || 0) > new Date(cur.deletedAt || 0)) {
+      map[t.quotNo] = t;
+    }
+  });
+  return Object.keys(map).map(function (k) { return map[k]; });
+}
+
+module.exports = { CORS, store, APP_PASSWORD, makeToken, verifyToken, requireAuth, mergeTombstones };
