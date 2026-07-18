@@ -2237,6 +2237,17 @@ function normalizeBooking(b){
   if(b.paymentPolicy===undefined) b.paymentPolicy='';
   if(b.packageTemplateId===undefined) b.packageTemplateId=null;
   if(b.packageTemplateName===undefined) b.packageTemplateName='';
+  // Booking Reference No. = Quotation No. (merged per user decision — the
+  // quotation number is already permanent, unique and collision-checked, so
+  // there's no need for a second, manually-typed reference number that could
+  // drift out of sync / use an inconsistent prefix). Running this inside
+  // normalizeBooking() means it self-heals on every load AND every save:
+  // any booking's bookingRef (including old inconsistent values like
+  // "Mishri-1645" or "MISH-2001") is overwritten with its own quotNo the
+  // very next time this runs — a one-time cleanup that needs no separate
+  // migration step, since loadBookings() persists the normalized list right
+  // back to storage after calling this.
+  if(b.quotNo) b.bookingRef=b.quotNo;
   return b;
 }
 function normalizeBookings(list){return (list||[]).map(normalizeBooking);}
@@ -3387,10 +3398,17 @@ function makeVouch(b){
   var missingConfirmNo=false;
   hotels.forEach(function(h){
     // Bug fix (1): show per-hotel Address and Contact Number as subtext
+    // PHASE 10 (address placement fix): Address now lives in the HOTEL cell
+    // — right below the Confirmation No. badge when one is given, otherwise
+    // right below the Hotel Name — and always ABOVE the phone/contact line.
+    // (Previously it was shown under Place, which was incorrect.) Simple
+    // HTML/DOM stacking order below achieves this: name -> confBadge ->
+    // addressHtml -> hotelSubHtml(phone), each separated by <br>.
     var hotelSub=[];
     if(h.phone) hotelSub.push('\u260E '+h.phone);
     var hotelSubHtml=hotelSub.length?'<br><span style="font-size:8.5px;color:#666">'+hotelSub.join(' &bull; ')+'</span>':'';
-    var placeHtml=h.place+(h.address?'<br><span style="font-size:8.5px;color:#666">'+h.address+'</span>':'');
+    var addressHtml=h.address?'<br><span style="font-size:8.5px;color:#666">'+h.address+'</span>':'';
+    var placeHtml=h.place;
     // Bug fix (5): show Check-in / Check-out TIME alongside the date
     var checkInHtml=fmtD(h.checkIn)+(h.checkInTime?' <span class="dt-time">'+fmtT(h.checkInTime)+'</span>':'');
     var checkOutHtml=fmtD(h.checkOut)+(h.checkOutTime?' <span class="dt-time">'+fmtT(h.checkOutTime)+'</span>':'');
@@ -3419,13 +3437,13 @@ function makeVouch(b){
     // removed per user request to relieve column-width pressure on
     // Room Category / Rooms / Extra Mattress.)
     hr+='<tr><td>'+placeHtml+'</td>'
-      +'<td class="hcell"><b>'+h.hotelName+'</b>'+confBadge+hotelSubHtml+'</td>'
+      +'<td class="hcell"><b>'+h.hotelName+'</b>'+confBadge+addressHtml+hotelSubHtml+'</td>'
       +'<td>'+(h.roomCat||'\u2014')+'</td>'
       +'<td style="text-align:center">'+roomsVal+'</td>'
       +'<td style="text-align:center">'+extraMattressVal+'</td>'
       +'<td class="nowrap dt">'+checkInHtml+'</td>'
       +'<td class="nowrap dt">'+checkOutHtml+'</td>'
-      +'<td style="text-align:center">'+mealLabel(h.mealPlan)+'</td></tr>';
+      +'<td class="mealcell" style="text-align:center">'+mealLabel(h.mealPlan)+'</td></tr>';
   });
   // Bug fix (2): show the Vehicle / Cab Number alongside the vehicle type
   vehs.forEach(function(v){vr+='<tr><td class="nowrap">'+v.type+'</td><td class="nowrap">'+(v.vehicleNo||'\u2014')+'</td><td>'+v.from+'</td><td>'+v.to+'</td></tr>';});
@@ -3506,6 +3524,7 @@ function makeVouch(b){
     // keep the original th styling untouched) keeps a 2-line header from
     // pushing the table taller than necessary.
     +'.hotel-tbl th{overflow-wrap:break-word;word-break:break-word;line-height:1.2;font-size:8px;padding:6px 5px}'
+    +'.mealcell{overflow-wrap:break-word;word-break:break-word}'
     +'td{padding:8px 9px;border:1px solid #1a1d27;font-size:10px;vertical-align:middle;line-height:1.45}'
     +'tr:nth-child(even) td{background:#fafafa}'
     +'.hcell{overflow-wrap:break-word;word-break:break-word}'
@@ -4826,7 +4845,14 @@ function buildTab(tab){
     frag.appendChild(btn('+ Add Vehicle','btn sm ob',function(){addVehicleRow(b);var tc=frag.parentNode;if(tc){tc.innerHTML='';tc.appendChild(buildTab('vehicle'));}}));
   }
   else if(tab==='confirm'){
-    frag.appendChild(fld('Booking Ref No.',inp(b.bookingRef,function(v){b.bookingRef=v;})));
+    // Booking Ref No. = Quotation No. now (merged — see normalizeBooking()).
+    // Shown read-only here so it's still visible on the Confirm tab where
+    // agents expect it, but can no longer be hand-typed into an inconsistent
+    // format (it would just be overwritten back to quotNo on next save/load
+    // anyway). Edit the actual number from the Quotation No. field instead.
+    var bookingRefField=inp(b.quotNo,function(){},'text');
+    bookingRefField.disabled=true;
+    frag.appendChild(fld('Booking Ref No. (= Quotation No.)',bookingRefField));
     frag.appendChild(fld('Booking Date',dateInp(b.bookingDate,function(v){b.bookingDate=v;})));
     frag.appendChild(fld('Selected Option',sel(b.selectedOption,[{v:1,l:'Option 1'},{v:2,l:'Option 2'},{v:3,l:'Option 3'}],function(v){b.selectedOption=parseInt(v);})));
     var tourStartWrap2=dateInp(b.startDate,function(v){b.startDate=v;});
