@@ -7,14 +7,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mishri CRM">
 <meta name="theme-color" content="#0A0C12">
+<meta name="color-scheme" content="dark">
 <title>✈ Mishri Holidays CRM</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script>
-// Perf: lazy-load heavy third-party bundles (xlsx ~800KB, html2pdf ~600KB) only when
-// actually needed, instead of blocking initial parse/download on every page load.
+// Perf: lazy-load heavy third-party bundles (xlsx ~800KB) only when actually
+// needed, instead of blocking initial parse/download on every page load.
 // Cached so repeat calls in the same session reuse the already-loaded script.
 var _scriptCache={};
 function loadScriptOnce(src){
@@ -29,7 +30,8 @@ function loadScriptOnce(src){
   return _scriptCache[src];
 }
 var XLSX_CDN='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-var HTML2PDF_CDN='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+// html2pdf.js / html2canvas no longer used — Save PDF now uses the browser's
+// native print pipeline (see openPrint()) for reliability across devices.
 </script>
 <script>
 // Register service worker (enables install prompt + offline app shell)
@@ -302,6 +304,8 @@ details summary::-webkit-details-marker{color:#D4A843}
       <button class="btn sm" id="globalSearchBtn" title="Search bookings">🔍</button>
       <button class="btn sm og" id="syncBtn" style="display:none">⟳ Sync</button>
       <button class="btn sm" id="installBtn" style="display:none;background:linear-gradient(135deg,#BB79D6,#9B59B6);color:#fff;border-color:transparent" onclick="installApp()">📲 Install</button>
+      <button class="btn sm" id="mAuthAcctBtn" title="Account">🔒</button>
+      <button class="btn sm" id="analyticsBtn" title="Business Analytics">📈</button>
       <button class="btn bg sm" id="hdrNew">+ New</button>
     </div>
   </div>
@@ -697,7 +701,7 @@ function wireTourStartShift(wrapEl,b,tab,frag){
 // every keystroke/re-render.
 function getActiveRevisionForRead(b){
   if(!b || !b.revisions || !b.revisions.length) return null;
-  var want=b.selectedRevision||1;
+  var want=(b.selectedRevision===undefined||b.selectedRevision===null)?0:b.selectedRevision;
   for(var i=0;i<b.revisions.length;i++){ if(b.revisions[i].revNo===want) return b.revisions[i]; }
   return b.revisions[0];
 }
@@ -731,14 +735,16 @@ function getOptFields(b, idx){
     childVehPct:b['childVehPct'+idx]!==undefined?(parseFloat(b['childVehPct'+idx])||0):0
   };
 }
-// ensureRevisions(b): NOT called anywhere yet in this phase — provided now
-// so Phase 2/3 can build on it without calcOpt() needing to change again.
-// Derives a b.revisions:[{revNo:1, options:[...]}] structure FROM the
-// existing opt1/opt2/opt3 fields, WITHOUT deleting or modifying
-// opt1/opt2/opt3 — those are left fully intact so every existing feature
-// that still reads them directly (Hotels tab UI, PDF generators, Sticky
-// Cost Bar, Option Toolbar — all of it, until their own later phases) keeps
-// working exactly as it does today.
+// ensureRevisions(b): derives a b.revisions:[{revNo:0, options:[...]}]
+// structure FROM the existing opt1/opt2/opt3 fields, WITHOUT deleting or
+// modifying opt1/opt2/opt3 — those are left fully intact so every existing
+// feature that still reads them directly (Hotels tab UI, PDF generators,
+// Sticky Cost Bar, Option Toolbar) keeps working exactly as it does today.
+// Numbering convention: the booking's original/current data — before any
+// explicit revision has ever been made — is Revision 0 (the baseline).
+// The first time the user clicks "+ New Revision" they get Revision 1,
+// then Revision 2, and so on. Revision 0 stays hidden in the UI just like
+// "Revision 1" used to, since the selector only shows once length>1.
 function ensureRevisions(b){
   if(!b || (b.revisions && b.revisions.length)) return b;
   var options=[1,2,3].map(function(n){
@@ -748,9 +754,63 @@ function ensureRevisions(b){
       gstPct:b['gstPct'+n]||0,childVehPct:b['childVehPct'+n]||0
     };
   });
-  b.revisions=[{revNo:1,status:'draft',options:options}];
-  if(!b.selectedRevision) b.selectedRevision=1;
+  b.revisions=[{revNo:0,status:'draft',options:options}];
+  if(b.selectedRevision===undefined||b.selectedRevision===null) b.selectedRevision=0;
   return b;
+}
+
+// PHASE 3A — activateRevision(b, revNo): makes the given revision the active
+// one (b.selectedRevision) and mirrors its data into the legacy
+// opt1/opt2/opt3 (+ mkPct/mkFixed/misc/gstPct/childVehPct) fields. This
+// mirror step is what keeps every part of the app that still reads those
+// fields directly — Quotation, Multi-Quotation, Voucher, Invoice, Receipt,
+// Sync, Dashboard, Search — automatically correct after a switch, with none
+// of that code touched or even aware revisions exist. calcOpt() and the
+// Hotels tab (via getOptFields()/setOptField()/setHotelField()) always read
+// the active revision directly regardless of this mirror, since a revision
+// exists, they take the rev.options branch, not the fallback.
+// Deep-copies the revision's hotels into the legacy fields (never shares the
+// array reference) so future edits to legacy-reading code, if any, can never
+// reach back into the revision's own data.
+function activateRevision(b, revNo){
+  ensureRevisions(b);
+  var target=null;
+  for(var i=0;i<b.revisions.length;i++){ if(b.revisions[i].revNo===revNo){ target=b.revisions[i]; break; } }
+  if(!target) return b;
+  b.selectedRevision=revNo;
+  [1,2,3].forEach(function(n){
+    var o=(target.options && target.options[n-1])||{};
+    b['opt'+n]=JSON.parse(JSON.stringify(o.hotels||[]));
+    b['mkPct'+n]=o.mkPct||0;
+    b['mkFixed'+n]=o.mkFixed||0;
+    b['misc'+n]=o.misc||0;
+    b['gstPct'+n]=o.gstPct||0;
+    b['childVehPct'+n]=o.childVehPct||0;
+  });
+  return b;
+}
+
+// PHASE 3C — addNewRevision(b): "+ New Revision" button handler. Duplicates
+// the CURRENTLY ACTIVE revision's data into a brand-new revision, assigns it
+// the next sequential revNo (max existing revNo + 1), appends it to
+// b.revisions, and immediately activates it via the existing
+// activateRevision() (which also mirrors it into legacy opt1/opt2/opt3 so
+// every other screen — Quotation/Voucher/Invoice/Receipt/Dashboard/Search —
+// keeps working unchanged, exactly as it already does on every revision
+// switch). Built entirely on top of ensureRevisions()/activateRevision(),
+// no new state shape, no changes to calcOpt() or any other phase's code.
+function addNewRevision(b){
+  ensureRevisions(b); // no-op if b.revisions already exists (legacy bookings become Revision 0 here)
+  var active=getActiveRevisionForRead(b);
+  var maxRevNo=0;
+  b.revisions.forEach(function(r){ if(r.revNo>maxRevNo) maxRevNo=r.revNo; });
+  var nextRevNo=maxRevNo+1;
+  // Deep-copy so the new revision never shares array/object references with
+  // the one it was duplicated from — editing one can never bleed into the other.
+  var dupOptions=JSON.parse(JSON.stringify((active&&active.options)||[]));
+  b.revisions.push({revNo:nextRevNo,status:'draft',options:dupOptions});
+  activateRevision(b,nextRevNo); // makes it active immediately + mirrors into legacy fields
+  return nextRevNo;
 }
 
 // PHASE 2 — setOptField(b, idx, field, value): the single place the Hotels
@@ -765,6 +825,28 @@ function setOptField(b, idx, field, value){
   b[field+idx]=value;
   var rev=getActiveRevisionForRead(b);
   if(rev && rev.options && rev.options[idx-1]) rev.options[idx-1][field]=value;
+  return value;
+}
+
+// PHASE 2 — setHotelField(b, idx, hidx, field, value): row-level counterpart
+// to setOptField() above. Writes the field on whichever array getOptFields()
+// currently points to (legacy b['opt'+idx] today, or an active revision's
+// own hotels array once Phase 3 revisions exist), and ALSO mirrors it into
+// the legacy b['opt'+idx][hidx] hotel row when a revision is active — so
+// Quotation, Multi-Quotation, Voucher, Invoice, Receipt, Sync, Dashboard and
+// Search (none of which are touched by this phase, and all of which still
+// read b['opt'+idx] directly) keep seeing the active revision's row-level
+// hotel edits too, the same way setOptField() already mirrors the
+// option-level scalar fields. Today (no booking has b.revisions) this is a
+// byte-identical no-op wrapper around h[k]=v.
+function setHotelField(b, idx, hidx, field, value){
+  var arr=getOptFields(b, idx).hotels;
+  if(arr && arr[hidx]) arr[hidx][field]=value;
+  var rev=getActiveRevisionForRead(b);
+  if(rev){
+    var legacyArr=b['opt'+idx];
+    if(legacyArr && legacyArr[hidx]) legacyArr[hidx][field]=value;
+  }
   return value;
 }
 
@@ -1051,14 +1133,32 @@ function trimHotelRows(b){
   // again the next time this tab/panel re-renders.
   if(b._hotelsTrimmed)return;
   b._hotelsTrimmed=true;
+  // Bootstrap: make sure the legacy opt1/opt2/opt3 arrays exist and are
+  // non-empty BEFORE asking getOptFields() for them — getOptFields()'s
+  // fallback for a missing/empty field returns a fresh throwaway [] rather
+  // than something stored on b (untouched Phase 1 behavior, not changed
+  // here), so this line is still needed as-is.
   ['opt1','opt2','opt3'].forEach(function(k){if(!b[k]||!b[k].length)b[k]=[emH()];});
+  // PHASE 2: read/trim through getOptFields() so this acts on whichever
+  // revision is active. Every edit below is in-place (length truncation,
+  // push) rather than a reassignment, so it lands on the exact array object
+  // getOptFields() returned — the legacy b['opt'+n] array for every booking
+  // today (zero behavior change), or an active revision's own hotels array
+  // once Phase 3 revisions exist.
+  var arrs=[1,2,3].map(function(n){return getOptFields(b,n).hotels;});
   var last=-1;
-  for(var i=0;i<Math.max(b.opt1.length,b.opt2.length,b.opt3.length);i++){
-    var blank=isBlankHotel(b.opt1[i])&&isBlankHotel(b.opt2[i])&&isBlankHotel(b.opt3[i]);
+  for(var i=0;i<Math.max(arrs[0].length,arrs[1].length,arrs[2].length);i++){
+    var blank=isBlankHotel(arrs[0][i])&&isBlankHotel(arrs[1][i])&&isBlankHotel(arrs[2][i]);
     if(!blank)last=i;
   }
   var keep=Math.max(1,last+1);
-  ['opt1','opt2','opt3'].forEach(function(k){b[k]=b[k].slice(0,keep);while(b[k].length<keep)b[k].push(emH());});
+  arrs.forEach(function(arr){arr.length=Math.min(arr.length,keep);while(arr.length<keep)arr.push(emH());});
+  // PHASE 2: if a revision is active, re-mirror its (now-trimmed) full state
+  // into the legacy opt1/opt2/opt3 fields — reuses activateRevision()
+  // (Phase 3A) rather than duplicating its copy logic here. No-op today
+  // (no booking has revisions yet at the point trimHotelRows first runs).
+  var rev0=getActiveRevisionForRead(b);
+  if(rev0) activateRevision(b, rev0.revNo);
 }
 function trimVehicleRows(b){
   if(b._vehTrimmed)return;
@@ -1069,7 +1169,12 @@ function trimVehicleRows(b){
   b.vehicles=b.vehicles.slice(0,Math.max(1,last+1));
 }
 function addHotelRow(b){
-  var last1=b.opt1[b.opt1.length-1]||{};
+  // PHASE 2: hotel arrays now come from getOptFields() so a new row is added
+  // to whichever revision is active, not always the legacy opt1/opt2/opt3.
+  // For every booking today (no b.revisions yet) getOptFields(b,1).hotels IS
+  // the same b.opt1 array reference as before — zero behavior change.
+  var arr1=getOptFields(b,1).hotels;
+  var last1=arr1[arr1.length-1]||{};
   // Smart defaults: new row inherits place/dates/room-qty pattern from the previous
   // hotel so multi-city itineraries don't need the same numbers typed again — the
   // agent only edits what's actually different (usually just the city + hotel name).
@@ -1081,10 +1186,22 @@ function addHotelRow(b){
   nh.childNoBed=last1.childNoBed||0;
   nh.mealPlan=last1.mealPlan||'CP';
   if(last1.checkOut){nh.checkIn=last1.checkOut;var d=new Date(last1.checkOut);if(!isNaN(d)){d.setDate(d.getDate()+1);nh.checkOut=d.toISOString().slice(0,10);}}
-  [1,2,3].forEach(function(n){var arr=b['opt'+n];var row=(n===1)?nh:JSON.parse(JSON.stringify(nh));if(n!==1){row.hotelName='';row.roomCat='';row.ratePerRoom=0;row.extraAdultRate=0;row.childRate=0;row.childNoBedRate=0;}arr.push(row);});
+  [1,2,3].forEach(function(n){var arr=getOptFields(b,n).hotels;var row=(n===1)?nh:JSON.parse(JSON.stringify(nh));if(n!==1){row.hotelName='';row.roomCat='';row.ratePerRoom=0;row.extraAdultRate=0;row.childRate=0;row.childNoBedRate=0;}arr.push(row);});
+  // PHASE 2: if a revision is active, re-mirror its (now-extended) full
+  // state into the legacy opt1/opt2/opt3 fields (reuses activateRevision(),
+  // Phase 3A) — otherwise the brand-new row would only exist on the
+  // revision's own array, and setHotelField()'s per-field mirror couldn't
+  // reach it (legacyArr[hidx] wouldn't exist yet) until this ran.
+  var rev1=getActiveRevisionForRead(b);
+  if(rev1) activateRevision(b, rev1.revNo);
 }
 function removeHotelRow(b,idx){
-  [1,2,3].forEach(function(n){var arr=b['opt'+n];if(arr&&arr.length>1)arr.splice(idx,1);});
+  // PHASE 2: same routing as addHotelRow() — acts on the active revision's
+  // hotel arrays via getOptFields(), or legacy opt1/opt2/opt3 when no
+  // revisions exist (identical behavior to before).
+  [1,2,3].forEach(function(n){var arr=getOptFields(b,n).hotels;if(arr&&arr.length>1)arr.splice(idx,1);});
+  var rev2=getActiveRevisionForRead(b);
+  if(rev2) activateRevision(b, rev2.revNo);
 }
 function addVehicleRow(b){b.vehicles.push(emV());}
 function removeVehicleRow(b,idx){if(b.vehicles.length>1)b.vehicles.splice(idx,1);}
@@ -2193,9 +2310,9 @@ function openQuickActionMenu(bk){
     sheet.appendChild(d);
   }
   item('📄','Generate Quotation',false,function(){ fastQuot(bk); });
-  item('🎫','Generate Voucher',false,function(){ openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf'); });
-  item('🧾','Generate Invoice',false,function(){ openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf'); });
-  item('🧾','Generate Receipt',false,function(){ openPrint(makeReceipt(bk),'Receipt_'+bk.quotNo+'.pdf'); });
+  item('🎫','Generate Voucher',false,function(){ openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf'); });
+  item('🧾','Generate Invoice',false,function(){ openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf'); });
+  item('🧾','Generate Receipt',false,function(){ openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf'); });
   item('📞','Call Customer',false,function(){
     if(!bk.contact){ toast('No contact number saved for this guest',false); return; }
     location.href='tel:'+bk.contact.replace(/[^0-9+]/g,'');
@@ -2311,6 +2428,7 @@ function go(page,skipFetch){
   else if(page==='itinTpl'){ loadItinTemplates(); c.appendChild(bItinTemplates()); }
   else if(page==='pkgTpl'){ loadPkgTemplates(); c.appendChild(bPkgTemplates()); }
   else if(page==='sync') c.appendChild(bSyncPage());
+  else if(page==='analytics'){ if(skipFetch){c.innerHTML='';c.appendChild(bAnalytics());} else{ showLoading(c); loadBookings().then(function(){c.innerHTML='';c.appendChild(bAnalytics());}); } }
 }
 // Loading spinner shown while a page waits on a network/storage call — replaces the
 // old bare "Loading..." text so waits feel responsive instead of frozen.
@@ -2322,6 +2440,7 @@ function showLoading(container){
 
 document.querySelectorAll('.ni').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.p);});});
 document.getElementById('hdrNew').addEventListener('click',function(){APP.edit=newBk();APP.ftab='guest';go('form');});
+document.getElementById('analyticsBtn').addEventListener('click',function(){go('analytics');});
 
 // ── Mobile Floating Action Bar (booking open) ──────────────────────────
 // Every handler below reuses an existing function/button — nothing here
@@ -2337,7 +2456,7 @@ document.getElementById('fabQuot').addEventListener('click',function(){
 });
 document.getElementById('fabVouch').addEventListener('click',function(){
   var bk=APP.edit; if(!bk) return;
-  openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');
+  openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');
 });
 document.getElementById('fabAddOpt').addEventListener('click',function(){
   // Jumps straight to the Hotels tab (where Option 1/2/3 pricing is added/
@@ -2444,6 +2563,24 @@ function swipeFormTab(dir){
 // ════════════════════════════════════════════════════════════
 //  PDF GENERATORS
 // ════════════════════════════════════════════════════════════
+
+// Computes the dynamic <title> used by every generated document (Quotation,
+// Voucher, Invoice, Receipt). This — NOT the "filename" argument passed into
+// openPrint() below — is what Android's native "Save as PDF" print pipeline
+// actually uses as the suggested output filename, because openPrint() prints
+// the iframe's own document rather than the parent app page. None of the
+// document generators previously set a <title> of their own, so every saved
+// PDF silently fell back to this parent page's <title>, "✈ Mishri Holidays
+// CRM" — regardless of which document or guest it was. Format:
+// "GuestName_DocType" (e.g. "Hardik Pandya_Quotation"); if the guest name is
+// blank, falls back to the document type alone (e.g. "Quotation") so the
+// filename is never empty. A light character strip guards against guest
+// names that happen to contain characters filenames can't have.
+function pdfFileName(guestName,docType){
+  var g=(guestName||'').trim().replace(/[\\/:*?"<>|]/g,'');
+  return (g?g+'_':'')+docType;
+}
+
 function openPrint(html,filename){
   filename=filename||'Mishri_Document';
   var baseName=filename.replace('.pdf','').replace('.html','');
@@ -2473,95 +2610,139 @@ function openPrint(html,filename){
   var btnRow=document.createElement('div');
   btnRow.style.cssText='display:flex;gap:6px;flex-shrink:0';
 
-  // Download PDF button
+  // Save PDF button — uses Android's native print pipeline (same mechanism
+  // as the old Print button) instead of html2canvas/html2pdf.js. Switched
+  // after repeated, confirmed-via-real-device-testing failures in the
+  // html2canvas approach: dark/black backgrounds, fully blank PDFs, and
+  // partial/incomplete content — all different failure modes of the same
+  // underlying issue, that a hand-rolled JS DOM-to-canvas renderer has to
+  // reimplement layout and paint itself rather than using the browser's own
+  // battle-tested rendering engine. Native print doesn't have this class of
+  // bug: it's the same pipeline used for printing every webpage on every
+  // Android device, and it respects the color-scheme:only light already
+  // declared in this document's own <head> correctly by design — no cloning,
+  // no onclone workarounds, no timing races needed.
+  // Trade-off (explicitly chosen for reliability): this opens Android's
+  // native print dialog — the user picks "Save as PDF" and taps save/download
+  // there — instead of a fully silent one-tap download. A few more taps,
+  // but this bypasses the entire class of bugs above.
   var dlBtn=document.createElement('button');
   dlBtn.style.cssText='border-radius:16px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;background:#D4A843;color:#1a1d27;border:1.5px solid #D4A843';
-  dlBtn.textContent='⬇ Save PDF';
+  dlBtn.textContent='🖨 Save PDF';
   dlBtn.addEventListener('click',function(){
-    var originalLabel=dlBtn.textContent;
-    dlBtn.textContent='⏳ Preparing...';dlBtn.disabled=true;
-    function reset(){dlBtn.textContent=originalLabel;dlBtn.disabled=false;}
-    function fallbackHtmlDownload(){
-      var blob=new Blob([html],{type:'text/html;charset=utf-8'});
-      var url=URL.createObjectURL(blob);
-      var a=document.createElement('a');
-      a.href=url; a.download=baseName+'.html';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){URL.revokeObjectURL(url);},3000);
-      reset();
-      toast('PDF library unavailable offline — downloaded as HTML instead. Open once online to enable PDF export.',false);
+    // REAL fix for the dynamic filename (confirmed against an actual saved
+    // PDF, which still came out as "_Mishri_Holidays_CRM.pdf" even after the
+    // generated document got its own <title>): Android's native print/"Save
+    // as PDF" dialog is driven by THIS top-level app page — the one that
+    // called print() — not by the iframe whose content is being printed. Its
+    // own <title> ("✈ Mishri Holidays CRM", set once in this file's <head>)
+    // is what the OS was actually using as the suggested filename, regardless
+    // of any <title> inside the iframe's document. So instead: swap this
+    // page's own document.title to the desired name right before printing,
+    // then restore it once printing is done (via 'afterprint', with a timed
+    // fallback in case that event doesn't fire reliably on a given device).
+    var prevTitle=document.title;
+    document.title=baseName;
+    var restored=false;
+    function restoreTitle(){
+      if(restored)return;
+      restored=true;
+      document.title=prevTitle;
+      iframe.contentWindow.removeEventListener('afterprint',restoreTitle);
     }
-    // Perf: html2pdf.js (jsPDF + html2canvas) is only fetched the first time someone
-    // actually taps Save PDF, not on every app load. Cached after that (see
-    // loadScriptOnce), so subsequent exports in the same session are instant.
-    loadScriptOnce(HTML2PDF_CDN).then(function(){
-      dlBtn.textContent='⏳ Generating...';
-      // Bug fix: previously rendered the document into an off-screen div
-      // (position:left:-9999px) before capturing it — several mobile browsers /
-      // in-app WebViews never actually paint elements pushed that far off-screen,
-      // so html2canvas captured a blank page (PDF looked empty). Capturing directly
-      // from the preview <iframe> below — which is already fully rendered and
-      // visible on screen — fixes this reliably across browsers.
-      var target=iframe.contentDocument.body;
-      return withTimeout(window.html2pdf().set({
-        margin:0,
-        filename:baseName+'.pdf',
-        image:{type:'jpeg',quality:0.98},
-        html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',onclone:function(clonedDoc){
-          // Bug fix (PDF black/dimmed background): html2canvas builds its own
-          // offscreen clone of the target document and renders THAT into a
-          // canvas — it does this inside the main app page's context, and the
-          // main app page has no color-scheme declared (it's an intentionally
-          // dark-themed app). Android Chrome's "Force Dark" can't semantically
-          // re-theme a raster canvas, so instead it just dims/darkens it — which
-          // is exactly what showed up in exported PDFs (colours all correct,
-          // just uniformly darkened). Forcing this specific clone to light mode
-          // stops that dimming, without touching the main app's own dark theme
-          // or any of the 5 document templates' own markup/CSS.
-          // Wrapped in try/catch so if anything here ever fails, PDF export
-          // still proceeds exactly as before — this can never break an export.
-          try{
-            clonedDoc.documentElement.style.colorScheme='only light';
-            if(clonedDoc.body){
-              clonedDoc.body.style.colorScheme='only light';
-              clonedDoc.body.style.background=clonedDoc.body.style.background||'#ffffff';
-            }
-          }catch(e){}
-        }},
-        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-        pagebreak:{mode:['css','avoid-all']}
-      }).from(target).save(),20000,'PDF export');
-    }).then(function(){
-      reset();
-      toast('✅ PDF downloaded!');
-    }).catch(function(err){
-      if(typeof window.html2pdf!=='function'){ fallbackHtmlDownload(); return; }
-      reset();
-      var msg=(err&&/timed out/.test(err.message))?'PDF export is taking too long on this browser — try the 🖨 Print button and use "Save as PDF" instead':'PDF export failed — try the 🖨 Print button instead';
-      toast(msg,false);
-    });
-  });
-
-  // Print button
-  var prBtn=document.createElement('button');
-  prBtn.style.cssText='border-radius:16px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#D4A843;border:1.5px solid #D4A843';
-  prBtn.textContent='🖨';
-  prBtn.addEventListener('click',function(){
+    iframe.contentWindow.addEventListener('afterprint',restoreTitle);
+    setTimeout(restoreTitle,60000); // safety net if 'afterprint' never fires
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
   });
 
   btnRow.appendChild(dlBtn);
-  btnRow.appendChild(prBtn);
   topBar.appendChild(backBtn);
   topBar.appendChild(titleEl);
   topBar.appendChild(btnRow);
   overlay.appendChild(topBar);
 
-  // iframe preview
+  // ── Preview engine (shared by Quotation / Voucher / Invoice / Receipt) ──
+  // Rendered at a fixed "print-like" width (PREVIEW_W, matching the
+  // ~210mm/A4 layout the document CSS was designed for) so every document
+  // renders exactly like the final PDF: proportionally-sized table columns
+  // with enough room for their text, no wrapping/overflow collisions (this
+  // is what originally fixed the Voucher table overflow, and it's untouched
+  // here). What changed vs. the previous version: that fixed-width page is
+  // NO LONGER force-scaled-to-fit on load. Auto-fitting it to the screen
+  // via a computed CSS transform is exactly what was blocking native
+  // pinch-to-zoom/browser-zoom and making long documents hard to read.
+  // Instead:
+  //   - The page starts at true 100% size (zoom=1 → no transform at all).
+  //   - previewViewport scrolls both ways (overflow:auto, native momentum
+  //     scrolling), so at 100% on a narrow phone screen the user pans/
+  //     scrolls or pinch-zooms exactly like any normal web page.
+  //   - The ➕/➖/Reset buttons below apply an explicit, user-chosen
+  //     transform:scale() (50%–200%, 10% steps) purely on this parent-page
+  //     wrapper — never touching the iframe's own document/CSS.
+  // None of this affects iframe.contentWindow.print() below, which still
+  // prints the iframe's own document based on its own content/print rules,
+  // completely unaffected by this parent-page-only preview chrome — so the
+  // already-correct PDF/print output is untouched.
+  var PREVIEW_W=800;
+  var ZOOM_MIN=0.5, ZOOM_MAX=2.0, ZOOM_STEP=0.1;
+  var zoom=1;
+
+  // Zoom toolbar — sits above the preview window, per spec (desktop zoom
+  // controls). Buttons are large enough to also work fine as touch targets
+  // on mobile, but their main audience is desktop/mouse users since mobile
+  // already gets native pinch-to-zoom back.
+  var zoomBar=document.createElement('div');
+  zoomBar.style.cssText='background:#20232E;padding:6px 10px;display:flex;justify-content:center;align-items:center;gap:8px;flex-shrink:0;border-bottom:1px solid #2A2D3A';
+  function zoomBtn(label,title){
+    var b=document.createElement('button');
+    b.textContent=label;
+    b.title=title;
+    b.style.cssText='border-radius:10px;padding:5px 12px;font-size:14px;font-weight:700;cursor:pointer;background:#2A2D3A;color:#D4A843;border:1.5px solid #3A3D4A;min-width:36px';
+    return b;
+  }
+  var zoomOutBtn=zoomBtn('➖','Zoom Out');
+  var zoomLabel=document.createElement('div');
+  zoomLabel.style.cssText='color:#D4A843;font-weight:700;font-size:12px;min-width:44px;text-align:center';
+  var zoomInBtn=zoomBtn('➕','Zoom In');
+  var zoomResetBtn=zoomBtn('🔄','Reset (100%)');
+  zoomBar.appendChild(zoomOutBtn);
+  zoomBar.appendChild(zoomLabel);
+  zoomBar.appendChild(zoomInBtn);
+  zoomBar.appendChild(zoomResetBtn);
+  overlay.appendChild(zoomBar);
+
+  var previewViewport=document.createElement('div');
+  previewViewport.style.cssText='flex:1;overflow:auto;background:#6e7175;-webkit-overflow-scrolling:touch';
+  var scaleOuter=document.createElement('div');
+  scaleOuter.style.cssText='margin:14px auto;box-shadow:0 2px 14px rgba(0,0,0,.35)';
+  var scaleInner=document.createElement('div');
+  scaleInner.style.cssText='width:'+PREVIEW_W+'px;transform-origin:top left;background:#fff';
   var iframe=document.createElement('iframe');
-  iframe.style.cssText='flex:1;border:none;background:#fff';
-  overlay.appendChild(iframe);
+  iframe.style.cssText='display:block;border:none;width:'+PREVIEW_W+'px;background:#fff;color-scheme:only light';
+  scaleInner.appendChild(iframe);
+  scaleOuter.appendChild(scaleInner);
+  previewViewport.appendChild(scaleOuter);
+  overlay.appendChild(previewViewport);
+
+  // Native mobile pinch-to-zoom / desktop browser zoom on this preview is
+  // blocked at the page level by the app's own <meta viewport> (it sets
+  // maximum-scale=1.0/user-scalable=no so normal CRM screens don't zoom
+  // when a field is tapped). Temporarily relax just that meta tag while
+  // this preview overlay is open, and restore the app's original setting
+  // the moment it closes — so this fix is scoped to the preview only and
+  // every other screen in the CRM keeps behaving exactly as before.
+  var viewportMeta=document.querySelector('meta[name="viewport"]');
+  var prevViewportContent=viewportMeta?viewportMeta.getAttribute('content'):null;
+  if(viewportMeta) viewportMeta.setAttribute('content','width=device-width,initial-scale=1.0');
+
+  var origCloseOverlay=closeOverlay;
+  closeOverlay=function(){
+    if(viewportMeta&&prevViewportContent!==null) viewportMeta.setAttribute('content',prevViewportContent);
+    origCloseOverlay();
+  };
+  backBtn.removeEventListener('click',origCloseOverlay);
+  backBtn.addEventListener('click',closeOverlay);
 
   document.body.appendChild(overlay);
 
@@ -2569,6 +2750,35 @@ function openPrint(html,filename){
   iframe.contentDocument.open();
   iframe.contentDocument.write(html);
   iframe.contentDocument.close();
+
+  // Applies the current zoom level as a CSS transform on this parent-page
+  // wrapper only (never touching the iframe's own document/CSS), and keeps
+  // scaleOuter sized to the post-zoom footprint so the scrollable area is
+  // always exactly right — no clipped edges, no leftover blank space —
+  // whether zoomed in (needs both horizontal + vertical scroll) or out.
+  function applyZoom(){
+    var doc=iframe.contentDocument;
+    var contentH=1131;
+    if(doc&&doc.documentElement){
+      contentH=Math.max(doc.documentElement.scrollHeight,doc.body?doc.body.scrollHeight:0)||1131;
+    }
+    iframe.style.height=contentH+'px';
+    scaleInner.style.transform='scale('+zoom+')';
+    scaleOuter.style.width=(PREVIEW_W*zoom)+'px';
+    scaleOuter.style.height=(contentH*zoom)+'px';
+    zoomLabel.textContent=Math.round(zoom*100)+'%';
+  }
+  function setZoom(z){
+    zoom=Math.min(ZOOM_MAX,Math.max(ZOOM_MIN,+z.toFixed(2)));
+    applyZoom();
+  }
+  zoomInBtn.addEventListener('click',function(){ setZoom(zoom+ZOOM_STEP); });
+  zoomOutBtn.addEventListener('click',function(){ setZoom(zoom-ZOOM_STEP); });
+  zoomResetBtn.addEventListener('click',function(){ setZoom(1); });
+
+  iframe.addEventListener('load',function(){ setTimeout(applyZoom,60); });
+  setTimeout(applyZoom,60); // document.write() doesn't always re-fire 'load'
+  window.addEventListener('resize',applyZoom);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2801,7 +3011,7 @@ function makeQuot(b,on){
   var pickupDrop=pickupDropStr(b);
   var childNote=(c.chargeableChild>0||c.childNoBedQty>0?'Package costed for '+c.adults+' Adults'+(c.chargeableChild>0?' + '+c.chargeableChild+' Child (With Bed)':'')+(c.childNoBedQty>0?' + '+c.childNoBedQty+' Child (No Bed)':'')+'. Children below 5 yrs travel complimentary without extra mattress.':'Package costed for '+c.adults+' Adults.')+(c.maxExtraMattress>0?' Incl. '+c.maxExtraMattress+' Extra Mattress.':'')+(c.gstPct>0?' GST @ '+c.gstPct+'% included in total.':' GST not applicable / not included.');
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Quotation')+'</title>'
     // Bug fix (Android black background, investigated — root cause confirmed
     // inside makeQuot's own generated document, not openPrint/html2canvas):
     // Android Chrome/WebView's "Force Dark" auto-theming repaints a page's
@@ -2835,7 +3045,7 @@ function makeQuot(b,on){
     +'.sub-title{font-family:"Poppins",sans-serif;font-size:11.5px;color:#B8892F;font-weight:600;margin-top:4px;letter-spacing:0.4px}'
     +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
     +'.info-row{display:contents}'
-    +'.info-label{background:#1a1d27;color:#D4A843;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #333;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #eee;letter-spacing:0.5px;text-transform:uppercase}'
     +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;color:#1a1d27;font-weight:500}'
     +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
     +'table{width:100%;border-collapse:collapse}'
@@ -2908,7 +3118,7 @@ function makeQuot(b,on){
 
     // Package cost — decorative price card (big number) instead of a plain table
     +'<div class="section-title">TOUR COST</div>'
-    +'<div style="border:2px solid #D4A843;border-radius:10px;overflow:hidden;max-width:320px;margin:0 auto 4px">'
+    +'<div style="border:2px solid #D4A843;border-radius:10px;overflow:hidden;max-width:320px;margin:0 auto 4px;page-break-inside:avoid;break-inside:avoid">'
     +'<div style="background:#1a1d27;color:#D4A843;padding:6px 12px;font-weight:800;font-size:10px;letter-spacing:0.5px;text-align:center">'+vehicleTypeLabel(vehs)+'</div>'
     +'<div style="padding:14px 12px;text-align:center;background:linear-gradient(135deg,#fff8e0,#fef3c7)">'
     +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
@@ -3016,7 +3226,7 @@ function makeMultiQuot(b, options){
     // Decorative price card per option — big number, small caption, like a
     // proper "Tour Cost" quote instead of a dense multi-column price table.
     var hotelNamesForCard=hotels.map(function(h){return h.hotelName;}).join(', ')||'—';
-    priceCards+='<div style="flex:1;min-width:0;border:2px solid '+cols[on]+';border-radius:10px;overflow:hidden;background:'+bgcols[on]+'">'
+    priceCards+='<div style="flex:1;min-width:0;border:2px solid '+cols[on]+';border-radius:10px;overflow:hidden;background:'+bgcols[on]+';page-break-inside:avoid;break-inside:avoid">'
       +'<div style="background:'+cols[on]+';color:#fff;padding:6px 12px;font-weight:800;font-size:10.5px;letter-spacing:0.5px">OPTION '+on+' — '+hotelNamesForCard+'</div>'
       +'<div style="padding:14px 12px;text-align:center">'
       +'<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.6px">Per Person Cost ('+c.adults+' Adults)</div>'
@@ -3045,7 +3255,7 @@ function makeMultiQuot(b, options){
   var travelDate=b.startDate?fmtD(b.startDate):'As per discussion';
   var dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Quotation')+'</title>'
     // Same Android/Chrome forced-dark-mode fix already applied in makeQuot() —
     // this document had no color-scheme opt-out and no explicit <html> background,
     // so phones/browsers with dark mode enabled could repaint it black. Needed
@@ -3065,12 +3275,13 @@ function makeMultiQuot(b, options){
     +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8.5px;color:#999;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase}'
     +'.divider-gold{border:none;border-top:2.5px solid #D4A843;margin:6px 0 10px}'
     +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
-    +'.info-label{background:#1a1d27;color:#D4A843;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #333;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #eee;letter-spacing:0.5px;text-transform:uppercase}'
     +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;font-weight:500;color:#1a1d27}'
     +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
-    +'table{width:100%;border-collapse:collapse}'
-    +'th{background:#1a1d27;color:#D4A843;padding:7px 8px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase}'
-    +'td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:middle;font-size:10.5px}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
+    +'table{width:100%;border-collapse:collapse;border:1px solid #999}'
+    +'th{background:#1a1d27;color:#D4A843;padding:7px 8px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;border:1px solid #111}'
+    +'td{padding:6px 8px;border:1px solid #999;vertical-align:middle;font-size:10.5px}'
     +'tr:nth-child(even) td{background:#fafafa}'
     +'.ie-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}'
     +'.section-head{font-family:"Poppins",sans-serif;font-weight:700;font-size:10px;margin-bottom:6px;padding-bottom:3px;border-bottom:1.5px solid currentColor;letter-spacing:0.5px;text-transform:uppercase}'
@@ -3154,10 +3365,10 @@ function fastQuot(bk){
   if(!bk) return;
   var filled=getFilledOptions(bk);
   if(filled.length>1){
-    openPrint(makeMultiQuot(bk,filled),'Quotation_Opt'+filled.join('_')+'_'+bk.quotNo+'.pdf');
+    openPrint(makeMultiQuot(bk,filled),pdfFileName(bk.guestName,'Quotation')+'.pdf');
   } else {
     var on=filled.length===1?filled[0]:(bk.selectedOption||1);
-    openPrint(makeQuot(bk,on),'Quotation_'+bk.quotNo+'.pdf');
+    openPrint(makeQuot(bk,on),pdfFileName(bk.guestName,'Quotation')+'.pdf');
   }
 }
 
@@ -3181,20 +3392,202 @@ function makeVouch(b){
     var hotelSubHtml=hotelSub.length?'<br><span style="font-size:8.5px;color:#666">'+hotelSub.join(' &bull; ')+'</span>':'';
     var placeHtml=h.place+(h.address?'<br><span style="font-size:8.5px;color:#666">'+h.address+'</span>':'');
     // Bug fix (5): show Check-in / Check-out TIME alongside the date
-    var checkInHtml=fmtD(h.checkIn)+(h.checkInTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkInTime)+'</span>':'');
-    var checkOutHtml=fmtD(h.checkOut)+(h.checkOutTime?'<br><span style="font-size:8.5px;color:#666">'+fmtT(h.checkOutTime)+'</span>':'');
+    var checkInHtml=fmtD(h.checkIn)+(h.checkInTime?' <span class="dt-time">'+fmtT(h.checkInTime)+'</span>':'');
+    var checkOutHtml=fmtD(h.checkOut)+(h.checkOutTime?' <span class="dt-time">'+fmtT(h.checkOutTime)+'</span>':'');
     // Bug fix (3): Room Category now shown as its own column (was missing entirely).
     // Bug fix (5): Confirmation No. now shown right beside the Hotel Name (bold,
     // green) instead of a separate column at the far end of a wide table — much
     // easier to spot at a glance. Still flagged if left blank.
     if(!h.confirmNo) missingConfirmNo=true;
-    var confBadge=h.confirmNo?(' &nbsp;<span style="color:#1a7a3a;font-weight:700;white-space:nowrap">[Conf: '+h.confirmNo+']</span>'):'';
-    hr+='<tr><td><b>'+h.hotelName+'</b>'+confBadge+hotelSubHtml+'</td><td>'+(h.roomCat||'\u2014')+'</td><td>'+placeHtml+'</td><td>'+checkInHtml+'</td><td>'+checkOutHtml+'</td><td>'+nts(h.checkIn,h.checkOut)+'</td><td>'+mealLabel(h.mealPlan)+'</td></tr>';
+    var confBadge=h.confirmNo?(' &nbsp;<span style="color:#1a7a3a;font-weight:700">[Conf: '+h.confirmNo+']</span>'):'';
+    // PHASE 3D (Voucher-only layout fix): the Hotel cell (name + confirmation
+    // badge + address/phone subtext) is the one column allowed to wrap — it
+    // carries the "hcell" class below, which allows word-break so an extremely
+    // long Confirmation No. wraps onto a second line WITHIN this column
+    // instead of stretching the table and squeezing Check In / Check Out.
+    // Check In / Check Out cells now carry "nowrap" (in addition to the
+    // table using a fixed column layout below) so the date+time can never
+    // wrap across lines regardless of how long the Confirmation No. is.
+    // Rooms / Extra Mattress: same existing per-hotel fields (h.rooms /
+    // h.extraMattress) already used elsewhere in the app (e.g. Quotation's
+    // own hotel table) — just surfaced as their own columns here too.
+    // Extra Mattress shows "-" when 0/blank, per spec.
+    var roomsVal=(h.rooms!==undefined && h.rooms!==null && h.rooms!=='')?h.rooms:'\u2014';
+    var extraMattressVal=(parseInt(h.extraMattress)>0)?h.extraMattress:'-';
+    // Column order per spec: Place -> Hotel -> Room Category -> Rooms ->
+    // Extra Mattress -> Check-In -> Check-Out -> Meal. (Nights column
+    // removed per user request to relieve column-width pressure on
+    // Room Category / Rooms / Extra Mattress.)
+    hr+='<tr><td>'+placeHtml+'</td>'
+      +'<td class="hcell"><b>'+h.hotelName+'</b>'+confBadge+hotelSubHtml+'</td>'
+      +'<td>'+(h.roomCat||'\u2014')+'</td>'
+      +'<td style="text-align:center">'+roomsVal+'</td>'
+      +'<td style="text-align:center">'+extraMattressVal+'</td>'
+      +'<td class="nowrap dt">'+checkInHtml+'</td>'
+      +'<td class="nowrap dt">'+checkOutHtml+'</td>'
+      +'<td style="text-align:center">'+mealLabel(h.mealPlan)+'</td></tr>';
   });
   // Bug fix (2): show the Vehicle / Cab Number alongside the vehicle type
   vehs.forEach(function(v){vr+='<tr><td class="nowrap">'+v.type+'</td><td class="nowrap">'+(v.vehicleNo||'\u2014')+'</td><td>'+v.from+'</td><td>'+v.to+'</td></tr>';});
   (b.itinerary||[]).forEach(function(d,i){if(d)ir+='<tr><td style="font-weight:bold;background:#f5f5f5;white-space:nowrap;font-size:10px">Day '+(i+1)+'</td><td>'+d+'</td></tr>';});
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10.5px;color:#333;line-height:1.5}.pg{padding:8mm 12mm}.hd{background:#1a1d27;color:#fff;padding:12px 16px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.lo{font-size:16px;font-weight:900;color:#D4A843}.st{background:#D4A843;color:#1a1d27;padding:3px 9px;font-weight:bold;font-size:10px;border-radius:3px;margin:10px 0 6px;display:inline-block}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.ir{display:flex;gap:4px;margin-bottom:2px;align-items:baseline}.lb{font-weight:bold;min-width:110px;color:#555;font-size:10px}.vl{font-size:10px}.vg-bg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.vg-row{display:flex;gap:4px;margin-bottom:2px;align-items:baseline;flex-wrap:wrap}.vg-label{font-weight:bold;min-width:110px;color:#555;font-size:10px}.vg-value{font-size:10px}@media screen and (max-width:768px){.vg-bg{grid-template-columns:1fr;gap:6px}.vg-row{flex-direction:column;gap:1px;margin-bottom:8px}.vg-label{min-width:0}}table{width:100%;border-collapse:collapse}th{background:#2c2c3e;color:#D4A843;padding:6px 8px;font-size:9px;text-align:left;vertical-align:middle}td{padding:6px 8px;border:1px solid #e5e5e5;font-size:10px;vertical-align:middle;line-height:1.4}.imp{background:#fff3cd;border:1px solid #D4A843;border-radius:3px;padding:8px;margin:10px 0;font-size:10px}.ft{margin-top:14px;border-top:1px solid #D4A843;padding-top:8px;text-align:center;font-size:9px;color:#666}@media print{.pg{padding:5mm 8mm}}'+docPolishCss()+'</style></head><body><div class="pg"><div class="hd"><div style="display:flex;align-items:center;gap:8px">'+docLogoHtml(30,true)+'<div><div style="font-size:9px;color:#ccc">Travel Voucher &mdash; Confirmed Booking</div><div style="font-size:8px;color:#ccc;margin-top:2px;line-height:1.4">'+docContactHtml()+'</div></div></div><div style="background:#D4A843;color:#1a1d27;padding:5px 14px;border-radius:4px;font-weight:bold;font-size:13px">VOUCHER</div></div><div class="vg-bg"><div><div class="st">BOOKING</div><div class="vg-row"><span class="vg-label">Ref No.:</span><span class="vg-value"><b>'+(b.bookingRef||b.quotNo)+'</b></span></div><div class="vg-row"><span class="vg-label">Booking Date:</span><span class="vg-value">'+fmtD(b.bookingDate)+'</span></div><div class="vg-row"><span class="vg-label">Tour Start:</span><span class="vg-value">'+fmtD(b.startDate)+'</span></div><div class="vg-row"><span class="vg-label">Tour End:</span><span class="vg-value">'+fmtD(b.endDate)+'</span></div><div class="vg-row"><span class="vg-label">Destination:</span><span class="vg-value">'+b.destination+'</span></div></div><div><div class="st">GUEST</div><div class="vg-row"><span class="vg-label">Name:</span><span class="vg-value"><b>'+b.guestName+'</b></span></div><div class="vg-row"><span class="vg-label">Contact:</span><span class="vg-value">'+b.contact+'</span></div><div class="vg-row"><span class="vg-label">Adults/Children:</span><span class="vg-value">'+b.adults+' Adult(s)'+(c.chargeableChild>0?' + '+c.chargeableChild+' Child(WB)':'')+(c.childNoBedQty>0?' + '+c.childNoBedQty+' Child(NB)':'')+'</span></div><div class="vg-row"><span class="vg-label">Rooms:</span><span class="vg-value">'+b.rooms+'</span></div>'+(c.maxExtraMattress>0?'<div class="vg-row"><span class="vg-label">Extra Mattress:</span><span class="vg-value">'+c.maxExtraMattress+'</span></div>':'')+'</div></div><div class="st">HOTEL CONFIRMATIONS</div><table><tr><th>Hotel</th><th>Room Cat.</th><th>Place</th><th>Check In</th><th>Check Out</th><th>Nights</th><th>Meal</th></tr>'+hr+'</table>'+(vr?'<div class="st">VEHICLE &amp; TRANSPORT</div><table><tr><th>Vehicle</th><th>Vehicle / Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+vr+'</table>':'')+'<div class="st">DRIVER</div><div class="g2"><div><div class="ir"><span class="lb">Driver:</span><span class="vl">'+(b.driverName||'—')+'</span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+(b.driverContact||'—')+'</span></div></div></div>'+(ir?'<div class="st">ITINERARY</div><table>'+ir+'</table>':'')+(missingConfirmNo?'<div class="imp" style="background:#fdecec;border-color:#c0392b"><b>&#9888; NOTE:</b> One or more hotels above do not have a Confirmation No. yet — please update before sharing this voucher as final.</div>':'')+'<div class="imp"><b>&#9888; IMPORTANT:</b> Carry this voucher with a valid photo ID. Please refer to each hotel&rsquo;s check-in / check-out time shown above.</div><div class="ft">Thank you for choosing <b>Mishri Holidays</b></div></div></body></html>';
+
+  // ────────────────────────────────────────────────────────────────────
+  // PHASE 3D — Voucher-only presentation upgrade. Nothing above this point
+  // changed (hr/vr/ir/missingConfirmNo/c are built exactly as before, from
+  // the exact same fields). Only the CSS + markup template below is new:
+  //  - logo enlarged ~23% (30px -> 37px)
+  //  - contact block given the same Poppins/Playfair "premium" typography
+  //    used by the Quotation PDF (via the shared docLogoHtml/docContactHtml
+  //    helpers — called with different args, so Quotation/Invoice/Receipt,
+  //    which call those same shared helpers with their OWN args, are
+  //    completely unaffected)
+  //  - Hotel Details table: dark uniform borders, better padding/alignment,
+  //    colgroup + table-layout:fixed so Check In / Check Out can never be
+  //    squeezed into wrapping by a long Confirmation No.
+  //  - .hotel-table-wrap{page-break-inside:avoid} keeps the Hotel Details
+  //    table on one page whenever it's short enough to fit on one
+  // ────────────────────────────────────────────────────────────────────
+  var css=''
+    +':root{color-scheme:only light}'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'html{background:#fff}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#333;line-height:1.55;-webkit-font-smoothing:antialiased}'
+    +'.pg{max-width:210mm;margin:0 auto;padding:9mm 13mm}'
+    // PHASE 7 — Voucher header re-polish (visual only, matches the supplied
+    // reference layout). All class names below are prefixed "vhd-" and are
+    // brand-new / scoped to makeVouch() only — Quotation, Multi-Quotation,
+    // Invoice and Receipt each build their own header CSS separately in
+    // their own generator functions and do not reference any "vhd-" class,
+    // so none of them are touched by this change. The previous dark-navy
+    // full-width bar (.hd/.hd-left/.hd-sub/.hd-contact/.hd-brandcard/
+    // .hd-brand-*/.vch-badge) is replaced by a white-background header (logo
+    // + brand name/tagline/contact on the left, "VOUCHER" title + a dark
+    // navy confirmation badge on the right) — this is intentional per the
+    // reference image, which uses a white header with the dark navy colour
+    // reserved for the small badge only, not the whole bar.
+    +'.vhd{display:flex;justify-content:space-between;align-items:center;gap:18px;background:#fff;padding-bottom:16px;margin-bottom:16px;border-bottom:3px solid #D4A843}'
+    +'.vhd-left{display:flex;align-items:center;gap:16px}'
+    +'.vhd-logo img{display:block;height:58px;width:auto;max-width:170px;object-fit:contain}'
+    +'.vhd-divider{width:1px;align-self:stretch;background:#D4A843;opacity:0.6}'
+    +'.vhd-brand-name{font-family:"Playfair Display",Georgia,serif;font-weight:900;font-size:23px;color:#102A56;letter-spacing:0.3px;line-height:1.2}'
+    +'.vhd-tagline{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:11px;color:#B9853D;margin-top:2px;line-height:1.3}'
+    +'.vhd-contact-row{display:flex;align-items:center;gap:8px;margin-top:7px;font-family:"Poppins",sans-serif;font-size:10px;color:#102A56;font-weight:600}'
+    +'.vhd-contact-row .vhd-sep{color:#B9853D;font-weight:700}'
+    +'.vhd-email-row{margin-top:3px;font-family:"Poppins",sans-serif;font-size:10px;color:#102A56;font-weight:600}'
+    +'.vhd-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:9px}'
+    +'.vhd-title{font-family:"Playfair Display",Georgia,serif;font-weight:900;font-size:32px;color:#102A56;letter-spacing:1.2px;line-height:1}'
+    +'.vhd-badge{background:#1a1d27;color:#fff;padding:8px 16px;border-radius:4px;font-family:"Poppins",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:0.4px;text-transform:uppercase;text-align:center;line-height:1.5}'
+    +'.st{background:#D4A843;color:#1a1d27;padding:4px 11px;font-weight:700;font-size:10px;border-radius:3px;margin:14px 0 7px;display:inline-block;letter-spacing:0.6px;text-transform:uppercase;font-family:"Poppins",sans-serif}'
+    +'.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}'
+    +'.g2>div{border:1px solid #1a1d27;border-radius:5px}'
+    +'.ir{display:flex;gap:6px;align-items:baseline;padding:6px 10px;border-bottom:1px solid #e5e5e5}'
+    +'.ir:last-child{border-bottom:none}'
+    +'.lb{font-weight:600;min-width:112px;color:#555;font-size:10px}'
+    +'.vl{font-size:10px}'
+    +'.vg-bg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}'
+    +'.vg-bg>div{border:1px solid #1a1d27;border-radius:5px}'
+    +'.vg-row{display:flex;gap:6px;align-items:baseline;padding:6px 10px;border-bottom:1px solid #e5e5e5}'
+    +'.vg-row:last-child{border-bottom:none}'
+    +'.vg-label{font-weight:600;min-width:128px;color:#555;font-size:10px;flex-shrink:0}'
+    +'.vg-value{font-size:10px;flex:1;min-width:0}'
+    +'.vg-value.nowrap{overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}'
+    +'@media screen and (max-width:768px){.vg-bg{grid-template-columns:1fr;gap:6px}}'
+    +'table{width:100%;border-collapse:collapse}'
+    +'.hotel-tbl{table-layout:fixed}'
+    +'th{background:#1a1d27;color:#D4A843;padding:8px 9px;font-size:9px;text-align:left;vertical-align:middle;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;border:1px solid #1a1d27}'
+    // PHASE 9 (Voucher Hotel Confirmation table — header overlap fix): the
+    // narrow numeric columns (Room Category/Rooms/Extra Mattress) were
+    // overflowing their fixed-width header cell and visually bleeding into
+    // the next column. overflow-wrap+word-break lets long header words
+    // (e.g. "CATEGORY", "MATTRESS") wrap cleanly onto their own second line
+    // INSIDE their own cell instead of overflowing sideways; a tighter
+    // line-height/padding/font-size (scoped to .hotel-tbl th only — the
+    // Vehicle & Transport / Driver tables elsewhere in this same document
+    // keep the original th styling untouched) keeps a 2-line header from
+    // pushing the table taller than necessary.
+    +'.hotel-tbl th{overflow-wrap:break-word;word-break:break-word;line-height:1.2;font-size:8px;padding:6px 5px}'
+    +'td{padding:8px 9px;border:1px solid #1a1d27;font-size:10px;vertical-align:middle;line-height:1.45}'
+    +'tr:nth-child(even) td{background:#fafafa}'
+    +'.hcell{overflow-wrap:break-word;word-break:break-word}'
+    +'.hotel-tbl td.dt{font-size:9px}'
+    +'.dt-time{color:#666;font-size:8.5px}'
+    +'.hotel-table-wrap{page-break-inside:avoid;margin-bottom:2px}'
+    +'.imp{background:#fff3cd;border:1px solid #D4A843;border-radius:4px;padding:9px 10px;margin:10px 0;font-size:10px}'
+    +'.ft{margin-top:16px;border-top:2px solid #D4A843;padding-top:9px;text-align:center;font-size:9px;color:#666;font-family:"Poppins",sans-serif;letter-spacing:0.3px}'
+    +'@media print{.pg{padding:5mm 8mm}}'
+    +docPolishCss();
+
+  var head=''
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<meta name="color-scheme" content="only light">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
+
+  var headerHtml=''
+    +'<div class="vhd">'
+    +'<div class="vhd-left">'
+    +'<div class="vhd-logo">'+docLogoHtml(58)+'</div>'
+    +'<div class="vhd-divider"></div>'
+    +'<div>'
+    +'<div class="vhd-brand-name">MISHRI HOLIDAYS</div>'
+    +'<div class="vhd-tagline">Your Journey. Our Responsibility.</div>'
+    +'<div class="vhd-contact-row">&#9742;&nbsp;'+MISHRI_MOBILE_1+'<span class="vhd-sep">|</span>'+MISHRI_MOBILE_2+'</div>'
+    +'<div class="vhd-email-row">&#9993;&nbsp;'+MISHRI_EMAIL+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="vhd-right">'
+    +'<div class="vhd-title">VOUCHER</div>'
+    +'<div class="vhd-badge">Travel Voucher &mdash;<br>Confirmed Booking</div>'
+    +'</div>'
+    +'</div>';
+
+  // Booking Ref No. and Guest Name are wrapped in the shared "nowrap" utility
+  // (docPolishCss()) so they can never wrap across two lines, however long
+  // they are.
+  var bookingBox=''
+    +'<div><div class="st">BOOKING</div>'
+    +'<div class="vg-row"><span class="vg-label">Booking Reference No.:</span><span class="vg-value nowrap"><b>'+(b.bookingRef||b.quotNo)+'</b></span></div>'
+    +'<div class="vg-row"><span class="vg-label">Booking Date:</span><span class="vg-value">'+fmtD(b.bookingDate)+'</span></div>'
+    +'<div class="vg-row"><span class="vg-label">Tour Start:</span><span class="vg-value">'+fmtD(b.startDate)+'</span></div>'
+    +'<div class="vg-row"><span class="vg-label">Tour End:</span><span class="vg-value">'+fmtD(b.endDate)+'</span></div>'
+    +'<div class="vg-row"><span class="vg-label">Destination:</span><span class="vg-value">'+b.destination+'</span></div>'
+    +'</div>';
+
+  var guestBox=''
+    +'<div><div class="st">GUEST</div>'
+    +'<div class="vg-row"><span class="vg-label">Guest Name:</span><span class="vg-value nowrap"><b>'+b.guestName+'</b></span></div>'
+    +'<div class="vg-row"><span class="vg-label">Contact:</span><span class="vg-value">'+b.contact+'</span></div>'
+    +'<div class="vg-row"><span class="vg-label">Adults/Children:</span><span class="vg-value">'+b.adults+' Adult(s)'+(c.chargeableChild>0?' + '+c.chargeableChild+' Child(WB)':'')+(c.childNoBedQty>0?' + '+c.childNoBedQty+' Child(NB)':'')+'</span></div>'
+    +'<div class="vg-row"><span class="vg-label">Rooms:</span><span class="vg-value">'+b.rooms+'</span></div>'
+    +(c.maxExtraMattress>0?'<div class="vg-row"><span class="vg-label">Extra Mattress:</span><span class="vg-value">'+c.maxExtraMattress+'</span></div>':'')
+    +'</div>';
+
+  // Hotel Details table: colgroup + table-layout:fixed rebalances the 7
+  // columns to fixed percentages so a long Hotel Name / Confirmation No.
+  // (which wraps within its own "hcell" column) can never squeeze Check In /
+  // Check Out into wrapping — those two stay at a fixed 12% each and their
+  // cells carry white-space:nowrap on top of that as a second safeguard.
+  var hotelTableHtml=''
+    +'<div class="hotel-table-wrap"><table class="hotel-tbl">'
+    +'<colgroup><col style="width:11%"><col style="width:18%"><col style="width:13%"><col style="width:9%"><col style="width:11%"><col style="width:15%"><col style="width:15%"><col style="width:8%"></colgroup>'
+    +'<tr><th>Place</th><th>Hotel</th><th>Room Category</th><th>No of Rooms</th><th>Extra Mattress</th><th>Check-In</th><th>Check-Out</th><th>Meal</th></tr>'
+    +hr
+    +'</table></div>';
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+pdfFileName(b.guestName,'Voucher')+'</title>'
+    +head
+    +'<style>'+css+'</style></head><body><div class="pg">'
+    +headerHtml
+    +'<div class="vg-bg">'+bookingBox+guestBox+'</div>'
+    +'<div class="st">HOTEL CONFIRMATIONS</div>'
+    +hotelTableHtml
+    +(vr?'<div class="st">VEHICLE &amp; TRANSPORT</div><table><tr><th>Vehicle</th><th>Vehicle / Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+vr+'</table>':'')
+    +'<div class="st">DRIVER</div><div class="g2"><div><div class="ir"><span class="lb">Driver:</span><span class="vl">'+(b.driverName||'—')+'</span></div><div class="ir"><span class="lb">Contact:</span><span class="vl">'+(b.driverContact||'—')+'</span></div></div></div>'
+    +(ir?'<div class="st">ITINERARY</div><table>'+ir+'</table>':'')
+    +(missingConfirmNo?'<div class="imp" style="background:#fdecec;border-color:#c0392b"><b>&#9888; NOTE:</b> One or more hotels above do not have a Confirmation No. yet — please update before sharing this voucher as final.</div>':'')
+    +'<div class="imp"><b>&#9888; IMPORTANT:</b> Carry this voucher with a valid photo ID. Please refer to each hotel&rsquo;s check-in / check-out time shown above.</div>'
+    +'<div class="ft">Thank you for choosing <b>Mishri Holidays</b></div>'
+    +'</div></body></html>';
 }
 
 // Feature (6): default (auto-calculated) invoice rows, used when the user hasn't
@@ -3226,7 +3619,7 @@ function makeInv(b){
   bal=displayGrandTotal-received;
   paid=bal<=0;
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Invoice')+'</title>'
     +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
     +'<style>'
@@ -3343,7 +3736,7 @@ function makeReceipt(b){
   var bal=Math.max(grandTotal-received,0);
   var rctNo=b.receiptNo||((b.bookingRef||b.quotNo||'')+'-RCT');
   var rctDate=b.paymentDate||b.bookingDate||b.createdAt;
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Receipt')+'</title>'
     +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
     +'<style>'
@@ -3473,6 +3866,106 @@ function bDash(){
   return wrap;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  PHASE 4 — BUSINESS ANALYTICS DASHBOARD (NEW, additive only)
+//  Reuses existing data/logic only:
+//   • APP.bookings — the same array bDash()/bList() already read
+//   • calcOpt(b, b.selectedOption||1) — the same costing engine used
+//     everywhere else (quotations, vouchers, receipts, sticky bar).
+//     c.grandTotal = "Final Sale Amount" (same figure shown as
+//     GRAND TOTAL elsewhere). c.base = "Total Purchase Cost" (same
+//     figure already shown as "Base Total" in the Cost Summary).
+//   • fmtINR() — a local wrapper added inside bAnalytics() that uses the
+//     same en-IN Indian digit grouping as the app-wide fmt(), formatted
+//     as "₹ 12,45,678" for these cards. fmt() itself is untouched.
+//  No new calculation rule is introduced; this file only sums figures
+//  calcOpt() already produces. Does not read/write any Booking,
+//  Costing, Hotel, Sync, PDF, or Dashboard code, and does not touch
+//  bDash() above (untouched, byte-for-byte).
+//
+//  "Fully paid" reuses the exact same rule already used for the
+//  payment receipt's FULLY PAID/PART PAYMENT badge: amount received
+//  >= grand total (see makeReceipt(): bal=grandTotal-received).
+//
+//  Month/Year filter uses Tour Start Date (b.startDate) — the travel
+//  month — the same field already labeled "Tour Start Date" on the
+//  Guest/Confirm tabs and shown on every quotation/voucher/invoice.
+// ══════════════════════════════════════════════════════════════
+function bAnalytics(){
+  // Local-only formatter (does NOT touch the shared fmt() used by Booking/
+  // Costing/Dashboard/PDF/receipts elsewhere). Same Indian digit grouping as
+  // fmt() (en-IN locale, e.g. 1245678 -> "12,45,678"), just with a space
+  // after ₹ to match this card layout's requested display: "₹ 12,45,678".
+  function fmtINR(n){ return '\u20b9 '+Math.round(n||0).toLocaleString('en-IN'); }
+
+  var wrap=el('div');
+  wrap.appendChild(div('','<div class="h1">Business Analytics</div><div style="font-size:12px;color:#8A8090;margin-top:2px;margin-bottom:16px">Confirmed/Completed &amp; fully paid bookings for the selected month</div>'));
+
+  var now=new Date();
+  if(!APP._analyticsMonth) APP._analyticsMonth=now.getMonth()+1; // 1-12
+  if(!APP._analyticsYear) APP._analyticsYear=now.getFullYear();
+
+  var filterRow=el('div'); filterRow.style.cssText='display:flex;gap:10px;margin-bottom:16px';
+  var months=[{v:1,l:'January'},{v:2,l:'February'},{v:3,l:'March'},{v:4,l:'April'},{v:5,l:'May'},{v:6,l:'June'},{v:7,l:'July'},{v:8,l:'August'},{v:9,l:'September'},{v:10,l:'October'},{v:11,l:'November'},{v:12,l:'December'}];
+  var yearNow=now.getFullYear();
+  var years=[]; for(var y=yearNow-2;y<=yearNow+1;y++) years.push({v:y,l:String(y)});
+
+  var monthSel=sel(APP._analyticsMonth,months,function(v){APP._analyticsMonth=parseInt(v);renderCards();});
+  monthSel.className='sel'; monthSel.style.flex='1';
+  var yearSel=sel(APP._analyticsYear,years,function(v){APP._analyticsYear=parseInt(v);renderCards();});
+  yearSel.className='sel'; yearSel.style.flex='1';
+  filterRow.appendChild(monthSel); filterRow.appendChild(yearSel);
+  wrap.appendChild(filterRow);
+
+  var cardsWrap=el('div');
+  wrap.appendChild(cardsWrap);
+
+  function renderCards(){
+    cardsWrap.innerHTML='';
+    var month=APP._analyticsMonth, year=APP._analyticsYear;
+    var sales=0, purchase=0;
+    (APP.bookings||[]).forEach(function(b){
+      if(b.status!=='Confirmed' && b.status!=='Completed') return; // Booking Status filter — a booking that has finished its trip (status 'Completed') is still a won/paid sale and must count here exactly like 'Confirmed'; only pre-confirmation stages (New Inquiry/Contacted/Quotation Sent/Negotiation) and 'Lost' are excluded.
+      // PHASE 4 FINAL: calcOpt() internally calls getOptFields(b,idx), which
+      // already resolves to the ACTIVE revision (getActiveRevisionForRead(b)
+      // -> b.selectedRevision) whenever this booking has revisions — the
+      // exact same mechanism Quotation/Voucher/Invoice/Receipt already rely
+      // on. No revision-specific code is added here: reusing calcOpt() the
+      // same way those screens do is what makes Analytics automatically
+      // revision-correct, and automatically ignore inactive revisions,
+      // with zero new calculation logic.
+      var c=calcOpt(b,b.selectedOption||1); // same option/engine used app-wide
+      var received=parseFloat(b.paymentReceived)||0;
+      if(received < c.grandTotal) return; // Payment Status filter (same rule as FULLY PAID badge)
+      var dateStr=b.startDate; // Tour Start Date / Check-in — travel month, not Booking Date
+      if(!dateStr) return;
+      var d=new Date(dateStr);
+      if(isNaN(d.getTime())) return;
+      if((d.getMonth()+1)!==month || d.getFullYear()!==year) return; // Month/Year filter
+      sales+=c.grandTotal;
+      purchase+=c.base;
+    });
+    var profit=sales-purchase;
+    var profitPct=sales>0?(profit/sales*100):0; // 0 sales -> 0%, per spec
+
+    var cards=[
+      {label:'Total Sales',icon:'💰',value:fmtINR(sales),color:'#3498DB'},
+      {label:'Total Purchase',icon:'💳',value:fmtINR(purchase),color:'#8A8B93'},
+      {label:'Total Profit',icon:'📈',value:fmtINR(profit),sub:profitPct.toFixed(2)+'%',color:profit>0?'#2ECC71':(profit<0?'#E74C3C':'#8A8B93')}
+    ];
+    cards.forEach(function(cd){
+      var cardEl=el('div'); cardEl.className='card'; cardEl.style.marginBottom='14px';
+      cardEl.innerHTML='<div class="icon-badge" style="background:'+cd.color+'1f;color:'+cd.color+';margin-bottom:10px">'+cd.icon+'</div>'
+        +'<div style="font-size:11px;color:#8A8090;font-weight:600;margin-bottom:4px">'+cd.label+'</div>'
+        +'<div style="font-size:24px;font-weight:900;color:'+cd.color+';font-family:Poppins;line-height:1.2">'+cd.value+'</div>'
+        +(cd.sub?'<div style="font-size:15px;font-weight:700;color:'+cd.color+';margin-top:4px">'+cd.sub+'</div>':'');
+      cardsWrap.appendChild(cardEl);
+    });
+  }
+  renderCards();
+  return wrap;
+}
+
 // Perf: search-index cache for the Bookings list. Keyed by object reference via
 // WeakMap (not a property on the booking itself) so it can never leak into a saved/
 // cloned copy and go stale, and old entries are garbage-collected automatically
@@ -3527,9 +4020,9 @@ function bList(){
       var br=card.querySelector('div:last-child');
       (function(bk){
         withTooltip(br.appendChild(btn('📄','btn sm ob',function(){fastQuot(bk);})),'Generate Quotation');
-        withTooltip(br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');})),'Generate Voucher');
-        withTooltip(br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');})),'Generate Invoice');
-        withTooltip(br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),'Receipt_'+bk.quotNo+'.pdf');})),'Generate Receipt');
+        withTooltip(br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');})),'Generate Voucher');
+        withTooltip(br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf');})),'Generate Invoice');
+        withTooltip(br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf');})),'Generate Receipt');
         withTooltip(br.appendChild(btn('Edit','btn sm bg',function(){APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';go('form');})),'Edit Booking');
         withTooltip(br.appendChild(btn('✕','btn sm or',function(){
           confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? This cannot be undone.',function(){
@@ -3895,9 +4388,51 @@ function buildTab(tab){
   }
   else if(tab==='hotels'){
     trimHotelRows(b); // collapse any legacy pre-created blank slots down to just the filled rows
+    // PHASE 3A: create this booking's b.revisions/[Revision 1] scaffold the
+    // first time its Hotels tab is opened, if it doesn't have one yet.
+    // ensureRevisions() derives Revision 1 FROM the booking's current
+    // opt1/opt2/opt3 data, so this is purely additive metadata — nothing
+    // visibly changes for a booking that only ever has this one revision.
+    ensureRevisions(b);
     // Sub-tab state stored on booking object
     if(!b._activeOpt) b._activeOpt=1;
     var optDefs=[{n:1,col:'#2ECC71',lbl:'Option 1'},{n:2,col:'#3498DB',lbl:'Option 2'},{n:3,col:'#E67E22',lbl:'Option 3'}];
+
+    // PHASE 3B: Revision selector — lets the agent switch which revision's
+    // data the 3 option panels below are showing/editing. Only rendered
+    // when there's more than one revision, so a booking that has never
+    // needed a second revision looks exactly like it always has (matches
+    // Phase 3A's "no user-visible UI changes" — this is the first visible
+    // UI for the feature, and it stays out of the way until it's needed).
+    // PHASE 3C: revision toolbar — the "+ New Revision" button is always
+    // shown (even for a booking that only has Revision 1) so the agent can
+    // branch off a new revision at any time; the dropdown selector next to
+    // it keeps its Phase 3B behavior of only appearing once there's more
+    // than one revision to choose between.
+    {
+      var revWrap=el('div');revWrap.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap';
+      if(b.revisions && b.revisions.length>1){
+        var revLbl=el('span');revLbl.textContent='Revision:';revLbl.style.cssText='font-size:12px;font-weight:700;color:#8A8090';
+        var revSelEl=sel(String((b.selectedRevision===undefined||b.selectedRevision===null)?0:b.selectedRevision),b.revisions.map(function(r){return{v:r.revNo,l:'Revision '+r.revNo};}),function(v){
+          activateRevision(b,parseInt(v));
+          // Full tab rebuild (reuses the exact sw(id) closure from bForm(),
+          // already exposed for swipe navigation) — needed because switching
+          // revisions replaces the underlying hotel/cost data for all 3
+          // options at once, not just the one currently on screen.
+          if(typeof APP._formSwitchTabFn==='function') APP._formSwitchTabFn('hotels');
+        });
+        revWrap.appendChild(revLbl);revWrap.appendChild(revSelEl);
+      }
+      var newRevBtn=btn('+ New Revision','btn sm bg',function(){
+        var newNo=addNewRevision(b);
+        // Same full-tab rebuild pattern as the selector above — a new
+        // revision replaces the hotel/cost data for all 3 options at once.
+        if(typeof APP._formSwitchTabFn==='function') APP._formSwitchTabFn('hotels');
+        toast('✅ Created and activated Revision '+newNo);
+      });
+      revWrap.appendChild(newRevBtn);
+      frag.appendChild(revWrap);
+    }
 
     // Top: 3 option selector buttons always visible
     var selRow=el('div');selRow.style.cssText='display:flex;gap:8px;margin-bottom:14px';
@@ -3959,9 +4494,9 @@ function buildTab(tab){
 
       hotelsArr.forEach(function(h,hidx){
         function updH(k,v){
-          h[k]=v;
+          setHotelField(b,od.n,hidx,k,v);
           if(od.n===1 && (k==='place'||k==='checkIn'||k==='checkOut'||k==='rooms'||k==='extraAdults'||k==='chargeableChild'||k==='childNoBed'||k==='extraMattress')){
-            [2,3].forEach(function(altN){var arr=getOptFields(b,altN).hotels;if(arr && arr[hidx]) arr[hidx][k]=v;});
+            [2,3].forEach(function(altN){setHotelField(b,altN,hidx,k,v);});
           }
         }
         function tdWrap(elm){var td=el('td');td.style.cssText='padding:4px 5px;min-width:78px';elm.style.marginBottom='0';elm.style.padding='6px 7px';elm.style.fontSize='11px';td.appendChild(elm);return td;}
@@ -4073,10 +4608,18 @@ function buildTab(tab){
       hotelsArr.forEach(function(h,hidx){
         var vb=el('div');vb.className='hblock';vb.style.borderColor=od.col+'33';
         var vtt=el('div');vtt.style.cssText='font-size:11px;font-weight:700;color:'+od.col+';margin-bottom:8px';vtt.textContent='Hotel '+(hidx+1)+(h.hotelName?' — '+h.hotelName:'');vb.appendChild(vtt);
-        vb.appendChild(fld('Hotel Confirmation No.',inp(h.confirmNo,function(v){h.confirmNo=v;},'text','e.g. HTL-CONF-4521')));
-        vb.appendChild(fld('Hotel Address',inp(h.address,function(v){h.address=v;},'text','Full hotel address')));
-        vb.appendChild(fld('Hotel Contact Number',inp(h.phone,function(v){h.phone=v;},'text','+91 XXXXX XXXXX')));
-        vb.appendChild(g2([fld('Check In Time',inp(h.checkInTime,function(v){h.checkInTime=v;},'time')),fld('Check Out Time',inp(h.checkOutTime,function(v){h.checkOutTime=v;},'time'))]));
+        // Bug fix: these 5 fields used to mutate h.<field> directly, which only
+        // touched the active revision's hotel object and never reached the
+        // legacy opt1/opt2/opt3 mirror that Voucher generation reads from
+        // (updH()/setHotelField() write both places; this block skipped both).
+        // updH() itself is scoped inside the earlier hotelsArr.forEach() table
+        // loop and isn't reachable here, so we call setHotelField() directly —
+        // the same underlying mirror function updH() already wraps for every
+        // other field, with no change to its behavior or signature.
+        vb.appendChild(fld('Hotel Confirmation No.',inp(h.confirmNo,function(v){setHotelField(b,od.n,hidx,'confirmNo',v);},'text','e.g. HTL-CONF-4521')));
+        vb.appendChild(fld('Hotel Address',inp(h.address,function(v){setHotelField(b,od.n,hidx,'address',v);},'text','Full hotel address')));
+        vb.appendChild(fld('Hotel Contact Number',inp(h.phone,function(v){setHotelField(b,od.n,hidx,'phone',v);},'text','+91 XXXXX XXXXX')));
+        vb.appendChild(g2([fld('Check In Time',inp(h.checkInTime,function(v){setHotelField(b,od.n,hidx,'checkInTime',v);},'time')),fld('Check Out Time',inp(h.checkOutTime,function(v){setHotelField(b,od.n,hidx,'checkOutTime',v);},'time'))]));
         vDetails.appendChild(vb);
       });
       panel.appendChild(vDetails);
@@ -4288,7 +4831,8 @@ function buildTab(tab){
     frag.appendChild(fld('Selected Option',sel(b.selectedOption,[{v:1,l:'Option 1'},{v:2,l:'Option 2'},{v:3,l:'Option 3'}],function(v){b.selectedOption=parseInt(v);})));
     var tourStartWrap2=dateInp(b.startDate,function(v){b.startDate=v;});
     wireTourStartShift(tourStartWrap2,b,tab,frag);
-    frag.appendChild(g2([fld('Tour Start Date',tourStartWrap2),fld('Tour End Date',dateInp(b.endDate,function(v){b.endDate=v;}))]));
+    frag.appendChild(fld('Tour Start Date',tourStartWrap2));
+    frag.appendChild(fld('Tour End Date',dateInp(b.endDate,function(v){b.endDate=v;})));
     frag.appendChild(g2([fld('Driver Name',inp(b.driverName,function(v){b.driverName=v;})),fld('Driver Contact',inp(b.driverContact,function(v){b.driverContact=v;},'text','+91 XXXXX'))]));
     // Bug fix (3): removed the old booking-level "Hotel Confirmation No." field — each
     // hotel now has its own Confirmation No. entered on the Hotels tab, which is what
@@ -4312,7 +4856,7 @@ function buildTab(tab){
     vBtn.addEventListener('click',function(){
       var orig=vBtn.textContent;vBtn.disabled=true;vBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeVouch(APP.edit),'Voucher_'+APP.edit.quotNo+'.pdf');
+        openPrint(makeVouch(APP.edit),pdfFileName(APP.edit.guestName,'Voucher')+'.pdf');
       }).then(function(){vBtn.disabled=false;vBtn.textContent=orig;}).catch(function(err){
         vBtn.disabled=false;vBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -4325,7 +4869,7 @@ function buildTab(tab){
     invBtn.addEventListener('click',function(){
       var orig=invBtn.textContent;invBtn.disabled=true;invBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeInv(APP.edit),'Invoice_'+APP.edit.quotNo+'.pdf');
+        openPrint(makeInv(APP.edit),pdfFileName(APP.edit.guestName,'Invoice')+'.pdf');
       }).then(function(){invBtn.disabled=false;invBtn.textContent=orig;}).catch(function(err){
         invBtn.disabled=false;invBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -4339,7 +4883,7 @@ function buildTab(tab){
     rctBtn.addEventListener('click',function(){
       var orig=rctBtn.textContent;rctBtn.disabled=true;rctBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeReceipt(APP.edit),'Receipt_'+APP.edit.quotNo+'.pdf');
+        openPrint(makeReceipt(APP.edit),pdfFileName(APP.edit.guestName,'Receipt')+'.pdf');
       }).then(function(){rctBtn.disabled=false;rctBtn.textContent=orig;}).catch(function(err){
         rctBtn.disabled=false;rctBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -4453,20 +4997,20 @@ function buildTab(tab){
       }
       // Single option quotations
       dw.appendChild(dlbl('Single Option:'));
-      dw.appendChild(dbtn('📄 Option 1','btn gn',function(){openPrint(makeQuot(bk,1),'Quotation_Opt1_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('📄 Option 2','btn bn',function(){openPrint(makeQuot(bk,2),'Quotation_Opt2_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('📄 Option 3','btn o2',function(){openPrint(makeQuot(bk,3),'Quotation_Opt3_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 1','btn gn',function(){openPrint(makeQuot(bk,1),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 2','btn bn',function(){openPrint(makeQuot(bk,2),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 3','btn o2',function(){openPrint(makeQuot(bk,3),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
       // Multi option quotations
       dw.appendChild(dlbl('Multiple Options (one PDF):'));
-      dw.appendChild(dbtn('📄 Opt 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),'Quotation_Opt1_2_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('📄 Opt 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),'Quotation_Opt1_3_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('📄 Opt 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),'Quotation_Opt2_3_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('📄 All 3 Options','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),'Quotation_All_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 All 3 Options','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
       // Voucher & Invoice
       dw.appendChild(dlbl('Other Documents:'));
-      dw.appendChild(dbtn('🎫 Voucher','btn og',function(){openPrint(makeVouch(bk),'Voucher_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),'Invoice_'+bk.quotNo+'.pdf');}));
-      dw.appendChild(dbtn('🧾 Receipt','btn og',function(){openPrint(makeReceipt(bk),'Receipt_'+bk.quotNo+'.pdf');}));
+      dw.appendChild(dbtn('🎫 Voucher','btn og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');}));
+      dw.appendChild(dbtn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf');}));
+      dw.appendChild(dbtn('🧾 Receipt','btn og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf');}));
     })(b);
     frag.appendChild(dw);
 
@@ -5013,6 +5557,488 @@ function bSyncPage(){
   return wrap;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  LOCAL SINGLE-USER LOGIN (NEW — Phase: Auth)
+//  100% offline. No backend, no Netlify env vars, no Firebase.
+//  Uses only: localStorage + Web Crypto SHA-256.
+//  This entire block is additive and self-contained — it does not
+//  read or write any booking/hotel/template/sync data, and does
+//  not call or modify any existing CRM function. It only wraps the
+//  single existing `boot()` call at the very bottom of this file
+//  (see "BOOT" section) so the CRM cannot render until the local
+//  user is authenticated.
+// ══════════════════════════════════════════════════════════════
+var MAUTH = (function(){
+  var HASH_KEY    = 'mishriAuth_hash_v1';     // SHA-256 hex of password
+  var SESSION_KEY = 'mishriAuth_session_v1';  // {exp: ms timestamp}
+  var ATTEMPT_KEY = 'mishriAuth_attempts_v1'; // {count, lockUntil}
+  var RECOVERY_KEY= 'mishriAuth_recovery_hash_v1'; // SHA-256 hex of Recovery Key (NEW)
+  var SESSION_MS  = 12*60*60*1000;            // 12 hour session
+  var LOCK_MS     = 15*60*1000;               // 15 minute lockout
+  var MAX_ATTEMPTS= 5;
+
+  function sha256Hex(str){
+    var enc=new TextEncoder().encode(str);
+    return crypto.subtle.digest('SHA-256',enc).then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+    });
+  }
+  function getHash(){ try{return localStorage.getItem(HASH_KEY);}catch(e){return null;} }
+  function setHash(h){ try{localStorage.setItem(HASH_KEY,h);}catch(e){} }
+  function getSession(){
+    try{
+      var raw=localStorage.getItem(SESSION_KEY); if(!raw) return null;
+      var s=JSON.parse(raw);
+      if(!s||!s.exp||Date.now()>s.exp) return null;
+      return s;
+    }catch(e){return null;}
+  }
+  function setSession(){ try{localStorage.setItem(SESSION_KEY,JSON.stringify({exp:Date.now()+SESSION_MS}));}catch(e){} }
+  function clearSession(){ try{localStorage.removeItem(SESSION_KEY);}catch(e){} }
+  function getAttempts(){
+    try{
+      var raw=localStorage.getItem(ATTEMPT_KEY); if(!raw) return {count:0,lockUntil:0};
+      var a=JSON.parse(raw); return {count:a.count||0,lockUntil:a.lockUntil||0};
+    }catch(e){return {count:0,lockUntil:0};}
+  }
+  function setAttempts(a){ try{localStorage.setItem(ATTEMPT_KEY,JSON.stringify(a));}catch(e){} }
+  function clearAttempts(){ try{localStorage.removeItem(ATTEMPT_KEY);}catch(e){} }
+  // NEW: Recovery Key hash — only the SHA-256 hash is ever stored, never the key itself
+  function getRecoveryHash(){ try{return localStorage.getItem(RECOVERY_KEY);}catch(e){return null;} }
+  function setRecoveryHash(h){ try{localStorage.setItem(RECOVERY_KEY,h);}catch(e){} }
+
+  return {sha256Hex:sha256Hex,getHash:getHash,setHash:setHash,getSession:getSession,setSession:setSession,
+    clearSession:clearSession,getAttempts:getAttempts,setAttempts:setAttempts,clearAttempts:clearAttempts,
+    getRecoveryHash:getRecoveryHash,setRecoveryHash:setRecoveryHash,
+    SESSION_MS:SESSION_MS,LOCK_MS:LOCK_MS,MAX_ATTEMPTS:MAX_ATTEMPTS,HASH_KEY:HASH_KEY,SESSION_KEY:SESSION_KEY};
+})();
+
+// ── shared inline style strings (kept local to this block only) ──
+var MAUTH_INPUT_CSS='width:100%;padding:12px 14px;border-radius:8px;border:1.5px solid #2A2D3A;background:#1A1D27;color:#E8E0D0;font-size:14px;margin-bottom:12px;box-sizing:border-box';
+var MAUTH_BTN_CSS='width:100%;padding:12px;border-radius:8px;border:none;background:#D4A843;color:#1a1d27;font-weight:700;font-size:14px;cursor:pointer';
+
+// ══════════════════════════════════════════════════════════════
+//  AUTH UI POLISH — Show/Hide Password (UI ONLY)
+//  mAuthPwField() renders a password <input> wrapped with an eye
+//  toggle icon, using the exact same MAUTH_INPUT_CSS look every auth
+//  field already has (MAUTH_INPUT_CSS itself is untouched — non-
+//  password fields like the Recovery Key input are unaffected).
+//  mAuthWireEyeToggles() only ever flips input.type between
+//  'password' and 'text' — the browser's own native masking. It does
+//  not read, copy, store, or transform the value in any way, and does
+//  not touch sha256Hex(), MAUTH.*, session/lockout/recovery logic, or
+//  the value the rest of each screen's own submit handler reads.
+// ══════════════════════════════════════════════════════════════
+function mAuthPwField(id,placeholder){
+  return '<div style="position:relative;margin-bottom:12px">'
+    +'<input type="password" id="'+id+'" placeholder="'+placeholder+'" style="'+MAUTH_INPUT_CSS+';margin-bottom:0;padding-right:42px">'
+    +'<span class="mAuthEye" data-for="'+id+'" title="Show/Hide password" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;line-height:1;color:#5C5468;user-select:none">\ud83d\udc41</span>'
+    +'</div>';
+}
+function mAuthWireEyeToggles(){
+  document.querySelectorAll('.mAuthEye').forEach(function(icon){
+    if(icon._wired) return;
+    icon._wired=true;
+    icon.addEventListener('click',function(){
+      var inp=document.getElementById(icon.dataset.for);
+      if(!inp) return;
+      var willShow=inp.type==='password';
+      inp.type=willShow?'text':'password'; // UI-only toggle; the entered value never changes
+      icon.style.color=willShow?'#D4A843':'#5C5468';
+    });
+  });
+}
+
+function mAuthShell(html){
+  var old=document.getElementById('mAuthScreen'); if(old) old.remove();
+  var wrap=document.createElement('div');
+  wrap.id='mAuthScreen';
+  wrap.style.cssText='position:fixed;inset:0;background:#0F1117;z-index:999999;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto';
+  wrap.innerHTML=html;
+  document.body.appendChild(wrap);
+  return wrap;
+}
+
+// NEW: generate a random Recovery Key, e.g. MH-7XQ9-P2LK-8AZR
+// Uses crypto.getRandomValues (not Math.random) and an alphabet that
+// excludes look-alike characters (0/O, 1/I/L) to reduce transcription errors.
+function mAuthGenerateRecoveryKey(){
+  var alphabet='23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+  var out='MH';
+  for(var g=0; g<3; g++){
+    var part='';
+    var rand=new Uint32Array(4);
+    crypto.getRandomValues(rand);
+    for(var i=0;i<4;i++){ part+=alphabet[rand[i]%alphabet.length]; }
+    out+='-'+part;
+  }
+  return out;
+}
+
+// NEW: show the Recovery Key exactly once (right after first-time setup).
+// The key itself is never stored anywhere — only its SHA-256 hash was
+// already saved by the caller before this screen is shown.
+function mAuthShowRecoveryKeyOnce(key,onDone){
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:380px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">🗝️</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Your Recovery Key</div>'
+    +'<div style="font-size:12px;color:#E74C3C;font-weight:700;margin-bottom:16px;line-height:1.6">Save this Recovery Key safely.<br>It will never be shown again.<br>It is required if you forget your password.</div>'
+    +'<div style="font-family:monospace;font-size:18px;letter-spacing:1px;color:#E8E0D0;background:#1A1D27;border:1.5px solid #2A2D3A;border-radius:8px;padding:16px;margin-bottom:16px;word-break:break-all">'+key+'</div>'
+    +'<label style="display:flex;align-items:flex-start;gap:8px;text-align:left;font-size:11.5px;color:#8A8090;margin-bottom:16px;cursor:pointer"><input type="checkbox" id="mAuthRkAck" style="margin-top:2px"> I have saved this Recovery Key in a safe place</label>'
+    +'<button id="mAuthRkCont" style="'+MAUTH_BTN_CSS+'" disabled>Continue</button>'
+    +'</div>'
+  );
+  var ack=document.getElementById('mAuthRkAck'),btn=document.getElementById('mAuthRkCont');
+  ack.onchange=function(){ btn.disabled=!ack.checked; };
+  btn.onclick=function(){
+    if(!ack.checked) return;
+    wrap.remove();
+    onDone();
+  };
+}
+
+// First-time setup: create + confirm password
+function mAuthShowSetup(onDone){
+  if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Login cannot be set up.</div>'); return; }
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:360px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">🔐</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:22px">First time setup — create a login password</div>'
+    +'<div id="mAuthErr" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
+    +mAuthPwField('mAuthP1','New password (min 4 characters)')
+    +mAuthPwField('mAuthP2','Confirm password')
+    +'<button id="mAuthSetupBtn" style="'+MAUTH_BTN_CSS+'">Set Password &amp; Continue</button>'
+    +'<div style="font-size:10.5px;color:#5C5468;margin-top:14px;line-height:1.5">Only a one-way SHA-256 hash of this password is saved on this device (localStorage). The password itself is never stored, and nothing is sent over the network.</div>'
+    +'</div>'
+  );
+  mAuthWireEyeToggles();
+  var p1=document.getElementById('mAuthP1'),p2=document.getElementById('mAuthP2');
+  var btn=document.getElementById('mAuthSetupBtn'),err=document.getElementById('mAuthErr');
+  function go(){
+    var a=p1.value,b=p2.value;
+    err.textContent='';
+    if(!a||a.length<4){ err.textContent='Password must be at least 4 characters.'; return; }
+    if(a!==b){ err.textContent='Passwords do not match.'; return; }
+    btn.disabled=true; btn.textContent='Saving...';
+    MAUTH.sha256Hex(a).then(function(hash){
+      MAUTH.setHash(hash);
+      // NEW: generate a Recovery Key, store only its SHA-256 hash, then
+      // display the plain key exactly once. Password/session logic below
+      // is unchanged from before.
+      var recoveryKey=mAuthGenerateRecoveryKey();
+      MAUTH.sha256Hex(recoveryKey).then(function(rHash){
+        MAUTH.setRecoveryHash(rHash);
+        MAUTH.clearAttempts();
+        MAUTH.setSession();
+        wrap.remove();
+        mAuthShowRecoveryKeyOnce(recoveryKey,onDone);
+      });
+    });
+  }
+  btn.onclick=go;
+  p2.onkeydown=function(e){if(e.key==='Enter')go();};
+  p1.onkeydown=function(e){if(e.key==='Enter')p2.focus();};
+  p1.focus();
+}
+
+// Locked-out screen with live countdown
+function mAuthShowLocked(lockUntil,onDone){
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:340px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">⛔</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
+    +'<div style="font-size:12px;color:#E74C3C;margin-bottom:6px">Too many wrong attempts</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:18px">Login locked. Try again in <span id="mAuthCountdown" style="color:#E8E0D0;font-weight:700">--:--</span></div>'
+    +'</div>'
+  );
+  var el=document.getElementById('mAuthCountdown');
+  var timer=setInterval(function(){
+    var remain=lockUntil-Date.now();
+    if(remain<=0){
+      clearInterval(timer);
+      MAUTH.clearAttempts();
+      if(document.getElementById('mAuthScreen')) mAuthShowLogin(null,onDone);
+      return;
+    }
+    var mm=Math.floor(remain/60000),ss=Math.floor((remain%60000)/1000);
+    if(el) el.textContent=mm+':'+(ss<10?'0':'')+ss;
+  },250);
+}
+
+// Normal login screen
+// NEW: Forgot Password — step 1, enter Recovery Key
+function mAuthShowForgotEnterKey(onDone){
+  if(!MAUTH.getRecoveryHash()){
+    // Backward compatibility: logins created before this feature existed
+    // have no Recovery Key on file. Say so plainly instead of breaking.
+    var noKeyWrap=mAuthShell(
+      '<div style="width:100%;max-width:340px;text-align:center">'
+      +'<div style="font-size:40px;margin-bottom:6px">⚠️</div>'
+      +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
+      +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.5">No Recovery Key is on file for this login, so password reset is not available here.</div>'
+      +'<button id="mAuthForgotBack" style="'+MAUTH_BTN_CSS+'">Back to Login</button>'
+      +'</div>'
+    );
+    document.getElementById('mAuthForgotBack').onclick=function(){ mAuthShowLogin(null,onDone); };
+    return;
+  }
+  if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Cannot verify Recovery Key.</div>'); return; }
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:360px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">🗝️</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Forgot Password</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Enter your Recovery Key to reset your password</div>'
+    +'<div id="mAuthFgErr" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
+    +'<input type="text" id="mAuthFgKey" placeholder="MH-XXXX-XXXX-XXXX" style="'+MAUTH_INPUT_CSS+'text-transform:uppercase">'
+    +'<button id="mAuthFgVerify" style="'+MAUTH_BTN_CSS+'">Verify Recovery Key</button>'
+    +'<div id="mAuthFgBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
+    +'</div>'
+  );
+  var keyInput=document.getElementById('mAuthFgKey'),btn=document.getElementById('mAuthFgVerify'),err=document.getElementById('mAuthFgErr');
+  function verify(){
+    var entered=(keyInput.value||'').trim().toUpperCase();
+    if(!entered) return;
+    err.textContent='';
+    btn.disabled=true; btn.textContent='Verifying...';
+    MAUTH.sha256Hex(entered).then(function(hash){
+      if(hash===MAUTH.getRecoveryHash()){
+        wrap.remove();
+        mAuthShowForgotNewPassword(onDone);
+      } else {
+        btn.disabled=false; btn.textContent='Verify Recovery Key';
+        err.textContent='Invalid Recovery Key.'; // deliberately generic
+      }
+    });
+  }
+  btn.onclick=verify;
+  keyInput.onkeydown=function(e){if(e.key==='Enter')verify();};
+  document.getElementById('mAuthFgBack').onclick=function(){ mAuthShowLogin(null,onDone); };
+  keyInput.focus();
+}
+
+// NEW: Forgot Password — step 2, Recovery Key verified, set a new password.
+// The Recovery Key itself (and its stored hash) is left untouched.
+function mAuthShowForgotNewPassword(onDone){
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:360px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">🔐</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Create New Password</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Recovery Key verified. Set a new password.</div>'
+    +'<div id="mAuthFgErr2" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
+    +mAuthPwField('mAuthFgP1','New password (min 4 characters)')
+    +mAuthPwField('mAuthFgP2','Confirm new password')
+    +'<button id="mAuthFgSave" style="'+MAUTH_BTN_CSS+'">Save New Password</button>'
+    +'</div>'
+  );
+  mAuthWireEyeToggles();
+  var p1=document.getElementById('mAuthFgP1'),p2=document.getElementById('mAuthFgP2');
+  var btn=document.getElementById('mAuthFgSave'),err=document.getElementById('mAuthFgErr2');
+  function save(){
+    var a=p1.value,b=p2.value;
+    err.textContent='';
+    if(!a||a.length<4){ err.textContent='Password must be at least 4 characters.'; return; }
+    if(a!==b){ err.textContent='Passwords do not match.'; return; }
+    btn.disabled=true; btn.textContent='Saving...';
+    MAUTH.sha256Hex(a).then(function(hash){
+      MAUTH.setHash(hash);         // Recovery Key hash is NOT touched — same key still works next time
+      MAUTH.clearAttempts();
+      MAUTH.clearSession();        // logout all existing sessions
+      wrap.remove();
+      toast('Password reset. Please log in with your new password.',true);
+      mAuthShowLogin(null,onDone);
+    });
+  }
+  btn.onclick=save;
+  p2.onkeydown=function(e){if(e.key==='Enter')save();};
+  p1.focus();
+}
+
+function mAuthShowLogin(msg,onDone){
+  var att=MAUTH.getAttempts();
+  if(att.lockUntil && Date.now()<att.lockUntil){ mAuthShowLocked(att.lockUntil,onDone); return; }
+  if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Cannot verify login.</div>'); return; }
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:340px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">✈️</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:22px">Enter password to continue</div>'
+    +(msg?'<div style="color:#E74C3C;font-size:12px;margin-bottom:12px">'+msg+'</div>':'')
+    +mAuthPwField('mAuthPass','Password')
+    +'<button id="mAuthLoginBtn" style="'+MAUTH_BTN_CSS+'">Unlock</button>'
+    +'<div id="mAuthForgotLink" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Forgot Password?</div>'
+    +'</div>'
+  );
+  mAuthWireEyeToggles();
+  var input=document.getElementById('mAuthPass'),btn=document.getElementById('mAuthLoginBtn');
+  document.getElementById('mAuthForgotLink').onclick=function(){ mAuthShowForgotEnterKey(onDone); };
+  function attempt(){
+    var pw=input.value; if(!pw) return;
+    btn.disabled=true; btn.textContent='Checking...';
+    MAUTH.sha256Hex(pw).then(function(hash){
+      if(hash===MAUTH.getHash()){
+        MAUTH.clearAttempts();
+        MAUTH.setSession();
+        wrap.remove();
+        onDone();
+      } else {
+        var a=MAUTH.getAttempts();
+        a.count=(a.count||0)+1;
+        if(a.count>=MAUTH.MAX_ATTEMPTS){
+          a.lockUntil=Date.now()+MAUTH.LOCK_MS; a.count=0;
+          MAUTH.setAttempts(a);
+          mAuthShowLocked(a.lockUntil,onDone);
+        } else {
+          MAUTH.setAttempts(a);
+          mAuthShowLogin('Wrong password. '+(MAUTH.MAX_ATTEMPTS-a.count)+' attempt(s) remaining before lockout.',onDone);
+        }
+      }
+    });
+  }
+  btn.onclick=attempt;
+  input.onkeydown=function(e){if(e.key==='Enter')attempt();};
+  input.focus();
+}
+
+// Entry point: replaces the plain boot() call at the bottom of this file
+function mAuthGuard(onDone){
+  var sess=MAUTH.getSession();
+  if(sess){ onDone(); return; }
+  // NEW: after an inactivity auto-logout, mAuthInactivityLogout() sets this
+  // flag right before reloading — surface the message once, then clear it.
+  var inactivityMsg=null;
+  try{
+    if(sessionStorage.getItem('mishriAuth_logout_reason')==='inactivity'){
+      inactivityMsg='Session expired due to inactivity. Please login again.';
+      sessionStorage.removeItem('mishriAuth_logout_reason');
+    }
+  }catch(e){}
+  var att=MAUTH.getAttempts();
+  if(att.lockUntil && Date.now()<att.lockUntil){ mAuthShowLocked(att.lockUntil,onDone); return; }
+  if(!MAUTH.getHash()){ mAuthShowSetup(onDone); }
+  else { mAuthShowLogin(inactivityMsg,onDone); }
+}
+
+function mAuthLogout(){
+  MAUTH.clearSession();
+  location.reload();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  NEW: AUTO LOGOUT AFTER 30 MINUTES OF INACTIVITY
+//  Only acts while a session is actually active (mAuthResetIdleTimer
+//  is a no-op if MAUTH.getSession() is null, e.g. while the login/
+//  setup/forgot-password screens are showing). A full page reload is
+//  used to expire the session cleanly — this does not call boot()/
+//  init() a second time, so no existing timers/intervals in the CRM
+//  (dashboard, sync, etc.) are duplicated or otherwise touched.
+// ══════════════════════════════════════════════════════════════
+var MAUTH_IDLE_MS=30*60*1000; // 30 minutes
+var mAuthIdleTimer=null;
+function mAuthResetIdleTimer(){
+  if(!MAUTH.getSession()) return;
+  if(mAuthIdleTimer) clearTimeout(mAuthIdleTimer);
+  mAuthIdleTimer=setTimeout(mAuthInactivityLogout,MAUTH_IDLE_MS);
+}
+function mAuthInactivityLogout(){
+  if(!MAUTH.getSession()) return; // already logged out some other way
+  MAUTH.clearSession();
+  try{sessionStorage.setItem('mishriAuth_logout_reason','inactivity');}catch(e){}
+  location.reload();
+}
+['mousemove','mousedown','click','keydown','touchstart','scroll'].forEach(function(evt){
+  window.addEventListener(evt,mAuthResetIdleTimer,{passive:true});
+});
+
+// Change Password modal (opened from the 🔒 Account button in the header)
+function mAuthShowChangePassword(){
+  var old=document.getElementById('mAuthCpModal'); if(old) old.remove();
+  var ov=document.createElement('div');
+  ov.id='mAuthCpModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999998;display:flex;align-items:center;justify-content:center;padding:24px';
+  ov.innerHTML=''
+    +'<div style="width:100%;max-width:360px;background:#171922;border:1px solid #2A2D3A;border-radius:12px;padding:22px;box-sizing:border-box">'
+    +'<div style="font-size:15px;font-weight:700;color:#F0C869;margin-bottom:4px">Change Password</div>'
+    +'<div style="font-size:11.5px;color:#8A8090;margin-bottom:16px">You will be logged out after changing your password.</div>'
+    +'<div id="mAuthCpErr" style="color:#E74C3C;font-size:12px;margin-bottom:10px"></div>'
+    +mAuthPwField('mAuthCpCur','Current Password')
+    +mAuthPwField('mAuthCpNew','New Password (min 4 characters)')
+    +mAuthPwField('mAuthCpConf','Confirm New Password')
+    +'<div style="display:flex;gap:10px;margin-top:4px">'
+    +'<button id="mAuthCpCancel" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #2A2D3A;background:transparent;color:#8A8090;font-weight:600;font-size:13px;cursor:pointer">Cancel</button>'
+    +'<button id="mAuthCpSave" style="flex:1;'+MAUTH_BTN_CSS+'">Save</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  mAuthWireEyeToggles();
+  var cur=document.getElementById('mAuthCpCur'),nw=document.getElementById('mAuthCpNew'),conf=document.getElementById('mAuthCpConf');
+  var err=document.getElementById('mAuthCpErr'),saveBtn=document.getElementById('mAuthCpSave');
+  document.getElementById('mAuthCpCancel').onclick=function(){ ov.remove(); };
+  saveBtn.onclick=function(){
+    err.textContent='';
+    var curV=cur.value,nwV=nw.value,confV=conf.value;
+    if(!curV||!nwV||!confV){ err.textContent='All fields are required.'; return; }
+    if(nwV.length<4){ err.textContent='New password must be at least 4 characters.'; return; }
+    if(nwV!==confV){ err.textContent='New passwords do not match.'; return; }
+    saveBtn.disabled=true; saveBtn.textContent='Saving...';
+    MAUTH.sha256Hex(curV).then(function(curHash){
+      if(curHash!==MAUTH.getHash()){
+        saveBtn.disabled=false; saveBtn.textContent='Save';
+        err.textContent='Current password is incorrect.';
+        return;
+      }
+      MAUTH.sha256Hex(nwV).then(function(newHash){
+        MAUTH.setHash(newHash);
+        MAUTH.clearAttempts();
+        MAUTH.clearSession(); // logout all sessions after password change
+        ov.remove();
+        toast('Password changed. Please log in again.',true);
+        location.reload();
+      });
+    });
+  };
+}
+
+// Header 🔒 Account button — small dropdown: Change Password / Logout.
+// Wiring only; does not touch any other header button or business logic.
+(function mAuthWireAccountButton(){
+  function wire(){
+    var btn=document.getElementById('mAuthAcctBtn');
+    if(!btn) return;
+    btn.onclick=function(e){
+      e.stopPropagation();
+      var old=document.getElementById('mAuthAcctMenu'); if(old){ old.remove(); return; }
+      var menu=document.createElement('div');
+      menu.id='mAuthAcctMenu';
+      menu.style.cssText='position:fixed;z-index:999997;background:#171922;border:1px solid #2A2D3A;border-radius:8px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden';
+      var r=btn.getBoundingClientRect();
+      menu.style.top=(r.bottom+6)+'px'; menu.style.right=(window.innerWidth-r.right)+'px';
+      menu.innerHTML=''
+        +'<div id="mAuthMenuChangePw" style="padding:11px 14px;font-size:12.5px;color:#E8E0D0;cursor:pointer">🔑 Change Password</div>'
+        +'<div id="mAuthMenuLogout" style="padding:11px 14px;font-size:12.5px;color:#E74C3C;cursor:pointer;border-top:1px solid #2A2D3A">🚪 Logout</div>';
+      document.body.appendChild(menu);
+      document.getElementById('mAuthMenuChangePw').onclick=function(){ menu.remove(); mAuthShowChangePassword(); };
+      document.getElementById('mAuthMenuLogout').onclick=function(){ menu.remove(); mAuthLogout(); };
+      setTimeout(function(){
+        document.addEventListener('click',function closeMenu(){ var m=document.getElementById('mAuthAcctMenu'); if(m)m.remove(); document.removeEventListener('click',closeMenu); });
+      },0);
+    };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire); else wire();
+})();
+
+// Multi-tab safety: if the password hash changes or the session is
+// cleared in another tab (e.g. password changed, or logout), lock this
+// tab too. Read-only reaction to storage events — no writes here.
+window.addEventListener('storage',function(e){
+  if(e.key===MAUTH.HASH_KEY || e.key===MAUTH.SESSION_KEY){
+    if(!MAUTH.getSession() && document.getElementById('app') && !document.getElementById('mAuthScreen')){
+      location.reload();
+    }
+  }
+});
+
 // ── LOGIN SCREEN (cloud mode only) ────────────────────────────
 function showLoginScreen(msg){
   var old=document.getElementById('loginScreen');if(old)old.remove();
@@ -5067,7 +6093,11 @@ function boot(){
 
 
 // ── BOOT ────────────────────────────────────────────────
-boot();
+// NEW: local single-user login gate runs first; the original boot()
+// (and everything it calls) is unchanged and only runs after a
+// successful login / valid session. mAuthResetIdleTimer() is also
+// started at this point (arms the 30-min inactivity auto-logout).
+mAuthGuard(function(){ mAuthResetIdleTimer(); boot(); });
 </script>
 </body>
 </html>
