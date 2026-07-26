@@ -216,6 +216,35 @@ input,select,button{font-family:inherit}
 .gs-hint{color:#8A8090;font-size:12.5px;text-align:center;padding:44px 20px;line-height:1.6}
 .gs-mark{background:rgba(212,168,67,0.35);color:#F0C869;border-radius:3px;padding:0 2px}
 
+/* ── Mobile Hotels Tab — Dynamic Card-Based Layout ──
+   Desktop keeps the existing wide table (.hotel-desktop-tblwrap) and the
+   combined voucher/confirmation <details> (.hotel-desktop-vdetails) exactly
+   as before — both are simply hidden under the same 768px breakpoint every
+   other mobile-only block on this page already uses. .hotel-mobile-cards is
+   hidden by default (desktop) and only switched to display:block on mobile.
+   No JS branches on device type anywhere — this is CSS-only visibility, so
+   both layouts always exist in the DOM, always reading the same hotelsArr. */
+.hotel-mobile-cards{display:none}
+@media(max-width:768px){
+  .hotel-desktop-tblwrap{display:none}
+  .hotel-desktop-vdetails{display:none}
+  .hotel-mobile-cards{display:block}
+}
+.hcard-m{border-radius:12px;margin-bottom:12px;overflow:hidden;background:#171923}
+.hcard-m-head{display:flex;align-items:center;padding:10px 12px}
+.hcard-m-head .inp.hcard-m-place{background:transparent;border:none;color:#E8E0D0;font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:0;flex:1;min-height:auto}
+.hcard-m-body{padding:12px}
+.inp.hcard-m-hotelname{font-size:14px;font-weight:700;margin-bottom:8px}
+.inp.hcard-m-roomcat{font-size:12px;color:#B8B2C2;margin-bottom:10px}
+.hcard-m-dates{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:4px}
+.hcard-m-dates>div{min-width:0}
+.hcard-m-arrow{color:#8A8090;font-size:14px;flex:0 0 auto}
+.hcard-m-nights{font-size:11.5px;font-weight:700;margin-bottom:10px}
+.hcard-m-rates,.hcard-m-voucher{margin-bottom:8px}
+.hcard-m-rates summary,.hcard-m-voucher summary{font-size:11px;color:#8A8090;cursor:pointer;padding:6px 0}
+.hcard-m-del{width:100%;margin-top:4px;background:transparent;border:1px solid #E74C3C55;color:#E74C3C;font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
+.hcard-m-del:active{background:#E74C3C22}
+
 /* ── Glass-look cards (no backdrop-filter — see perf note below) ── */
 .card{
   background:linear-gradient(160deg,rgba(38,41,56,0.88),rgba(24,26,37,0.92));
@@ -237,6 +266,19 @@ input,select,button{font-family:inherit}
 .lbl{font-size:11.5px;color:#9b96a3;margin-bottom:5px;display:block;font-weight:600;letter-spacing:.2px}
 .fld{margin-bottom:14px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Bug fix: grid items default to min-width:auto, so a child's intrinsic
+   content width (e.g. the flex-based date-picker wrapper) can blow out its
+   1fr track — overflowing the card and squeezing the sibling column down to
+   almost nothing. This is what was clipping 6-7 digit Amount values in the
+   Payment History installment editor. min-width:0 lets every .g2 column
+   shrink to fit its allotted fr share as intended; it only prevents unwanted
+   expansion, so no existing .g2 usage (desktop or mobile) is affected. */
+.g2>*{min-width:0}
+/* Opt-in modifier (Amount + Date row in the Payment History installment
+   editor only): widen Amount relative to Date since 6-7 digit amounts need
+   more room than a fixed-format DD/MM/YYYY date. Fr-based, so it stays
+   responsive at every viewport instead of hard-coding pixel widths. */
+.g2.pay-row{grid-template-columns:1.35fr 1fr}
 
 /* ── Buttons — gradient fills, tactile press, subtle glow on primary ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid transparent;white-space:nowrap;min-height:46px;transition:transform .1s ease,opacity .15s ease,box-shadow .2s ease;letter-spacing:.1px}
@@ -288,6 +330,160 @@ details summary::-webkit-details-marker{color:#D4A843}
 .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,0.1);border-top-color:#D4A843;border-radius:50%;animation:spin .7s linear infinite}
 .spinner.sm{width:16px;height:16px;border-width:2px}
 .loadwrap{display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:12px;color:#8A8090;font-size:12.5px}
+
+/* ════════════════════════════════════════════════════════════════
+   DATA-ENTRY WORKSPACE REDESIGN — Concept A (Soft Professional Light)
+   Approved design, applied here as CSS-only overrides.
+
+   SCOPE: every rule below is deliberately written as either
+   (a) "#content.form-open ..." — #content is the one shared mount
+       point used by every page (Dashboard, Booking List, Hotels
+       Master, Analytics, Templates, the Booking Form), and
+       .form-open is the exact class go() already adds to #content
+       only when page==='form' (see go(), ~line 2497) and removes
+       for every other page. Scoping every selector under this
+       exact hook means Dashboard/List/Hotels-Master/Analytics/
+       Templates keep their current styling completely unchanged —
+       only the booking form (Guest/Package/Hotels/Vehicle/
+       Itinerary/Docs/Confirm tabs) is affected, matching "focus
+       mainly on the content/form/data-entry workspace below the
+       header, do not blindly change the entire theme."
+   (b) unscoped edits to #stickyCostBar/#optSwitchBar/#formBar/
+       #fabBar base colors — safe without extra scoping because
+       these 4 bars are already display:none by default and are
+       ONLY ever shown (via the same go()/.show toggle) while
+       page==='form' — they are never visible on any other page.
+
+   NOT touched anywhere in this block: #hdr, #nav, body{} — the
+   header and bottom navigation keep today's exact dark styling,
+   per "keep the existing Header... Main navigation."
+   Also not touched: .btn and its color variants (.bg/.og/.ob/.or/
+   .gn/.bn/.pp/.o2) — "existing buttons and business identity" is
+   kept exactly as-is; only .bm (the transparent/outline "Cancel"
+   style) gets a light-surface-legible override below, since its
+   current colors were tuned for a dark backdrop and would render
+   almost invisible on the new light cards.
+   ════════════════════════════════════════════════════════════════ */
+
+#content.form-open{
+  background:#F5F3EE;
+}
+
+/* Cards */
+#content.form-open .card{
+  background:#FFFFFF;
+  border:1px solid #E6E1D3;
+  box-shadow:0 2px 10px rgba(120,108,84,0.10);
+}
+@media(hover:hover){#content.form-open .card:hover{box-shadow:0 6px 18px rgba(120,108,84,0.14);border-color:#D9CFAE}}
+#content.form-open .hblock{border:1px solid #E6E1D3;background:#FBFAF7}
+
+/* Inputs / selects / labels */
+#content.form-open .inp,
+#content.form-open .sel{
+  background:#FBFAF7;
+  border:1.5px solid #D9D3C4;
+  color:#2A2823;
+}
+#content.form-open .inp:focus,
+#content.form-open .sel:focus{
+  border-color:#C99A3E;
+  box-shadow:0 0 0 3px rgba(201,154,62,0.18);
+}
+#content.form-open .inp::placeholder{color:#ADA795}
+#content.form-open .lbl{color:#8A8272}
+#content.form-open .sect{color:#9A8F78;border-bottom:1px solid #E7E3D8}
+
+/* Cancel-style outline button (.bm) needs darker ink/border to stay
+   legible now that it sits on light cards/bars instead of dark ones.
+   Every other button variant (.bg/.og/.ob/.or/.gn/.bn/.pp/.o2) is a
+   solid gradient fill and reads fine on either background, so those
+   are intentionally left untouched. */
+#content.form-open .bm,
+#formBar .bm{
+  color:#6B6459;
+  border-color:#D9D3C4;
+}
+
+/* "Select Existing Customer" — its own class (.pickcust) so this one
+   secondary action stands out in the brand gold, without changing the
+   plain grey .bm treatment used by Cancel and other muted buttons. */
+#content.form-open .pickcust{
+  color:#B8892F;
+  border-color:#D4A84366;
+  background:rgba(212,168,67,0.07);
+}
+
+/* Sticky glass tab bar (attached to the top of the form card) */
+#content.form-open .tabs{
+  background:#FDFCFA;
+  border-bottom:1px solid #E7E3D8;
+}
+#content.form-open .tb{color:#9A8F78}
+#content.form-open .tb.on{color:#B8892F;border-bottom-color:#D4A843}
+
+/* Prev/Next quick tab-nav row divider */
+#content.form-open .tabnav{border-top:1px solid #E7E3D8}
+
+/* Mobile Hotel Card (.hcard-m and its sub-parts) */
+#content.form-open .hcard-m{background:#FFFFFF;border:1.5px solid #E6E1D3 !important}
+#content.form-open .hcard-m-head .inp.hcard-m-place{color:#2A2823}
+#content.form-open .hcard-m-hotelname{color:#2A2823}
+#content.form-open .hcard-m-roomcat{color:#7A7362}
+#content.form-open .hcard-m-dates{color:#2A2823}
+#content.form-open .hcard-m-arrow{color:#B0A78F}
+#content.form-open .hcard-m-nights{color:#2A2823}
+#content.form-open .hcard-m-rates summary,
+#content.form-open .hcard-m-voucher summary{color:#8A8272}
+
+/* Financial indicator colors — same green/blue/red/orange system,
+   deepened only where needed for contrast against the new light
+   cards (the hues/meaning are unchanged, per "financial indicators
+   retained"). Desktop already used its own inline colors outside
+   this 768px-gated block and is handled separately below. */
+@media(max-width:768px){
+  #content.form-open .cs-cost{color:#7A7362 !important}
+  #content.form-open .cs-profit-pos{color:#1E8449 !important}
+  #content.form-open .cs-profit-neg{color:#C0392B !important}
+  #content.form-open .cs-profit-zero{color:#7A7362 !important}
+}
+
+/* Sticky Mobile Cost Bar — form-exclusive, safe to restyle unconditionally */
+#stickyCostBar{
+  background:#FFFFFF;
+  border-bottom:1px solid #E6E1D3;
+  box-shadow:0 2px 8px rgba(120,108,84,.08);
+}
+#stickyCostBar .scb-lbl{color:#8A8272}
+#stickyCostBar .scb-val{color:#2A2823}
+#stickyCostBar #scbProfit,#stickyCostBar #scbProfitPct{color:#1E8449}
+
+/* Sticky Option Switch Bar — form-exclusive, safe to restyle unconditionally */
+#optSwitchBar{
+  background:#FBFAF7;
+  border-bottom:1px solid #E6E1D3;
+}
+#optSwitchBar button:not(.active){color:#9A8F78}
+#optSwitchBar .osb-price{color:#B0A78F}
+#optSwitchBar .osb-item.active .osb-price{color:#B8892F}
+/* .opt1/.opt2/.opt3 active fills are the same green/blue/orange used
+   elsewhere for Option 1/2/3 — left as-is (already legible; solid fill). */
+
+/* Sticky Save/Cancel bar — form-exclusive, safe to restyle unconditionally */
+#formBar{
+  background:#FFFFFF;
+  border-top:1px solid #E6E1D3;
+  box-shadow:0 -2px 10px rgba(120,108,84,.10);
+}
+
+/* Mobile Floating Action Bar — form-exclusive, safe to restyle unconditionally */
+#fabBar{
+  background:#FFFFFF;
+  border-top:1px solid #E6E1D3;
+  box-shadow:0 -2px 10px rgba(120,108,84,.10);
+}
+#fabBar button{color:#2A2823}
+#fabBar button:active{background:rgba(184,137,47,0.12)}
 </style>
 </head>
 <body>
@@ -1205,6 +1401,21 @@ function removeHotelRow(b,idx){
 }
 function addVehicleRow(b){b.vehicles.push(emV());}
 function removeVehicleRow(b,idx){if(b.vehicles.length>1)b.vehicles.splice(idx,1);}
+// Installment Payment History — Phase 2: array mutation helpers, mirroring
+// addVehicleRow/removeVehicleRow above. b.paymentHistory itself was already
+// added (Phase 1, newBk()/normalizeBooking()) — these just add/remove
+// entries. No new validation logic here: getPaymentSummary() (Phase 1)
+// already ignores invalid/zero/negative amounts wherever this array is
+// read, so a freshly-added blank entry (amount 0) simply doesn't count
+// toward totals until the user fills it in.
+function addPaymentEntry(b){
+  if(!Array.isArray(b.paymentHistory)) b.paymentHistory=[];
+  b.paymentHistory.push({amount:0,date:'',mode:'Cash',receivedBy:'',receiptNo:''});
+  return b.paymentHistory.length-1;
+}
+function removePaymentEntry(b,idx){
+  if(Array.isArray(b.paymentHistory)) b.paymentHistory.splice(idx,1);
+}
 // ── SMART QUOTATION NUMBERING (MH-<Sequence><YY>) ────────────
 // Only the numeric sequence is persisted (LS key 'quotSeq'), never the year —
 // so a year rollover needs no migration: YY is always computed fresh at
@@ -1294,6 +1505,13 @@ function newBk(){
     invoiceItems:[],
     // Feature (7): payment receipt fields
     paymentMode:'Cash',receivedBy:'',paymentDate:'',receiptNo:'',
+    // Installment Payment History — Phase 1 (foundation only): an empty array
+    // means "no installments recorded yet — fall back to the existing single
+    // paymentReceived field" (see getPaymentSummary() below), the exact same
+    // additive/backward-compatible pattern already used by invoiceItems above.
+    // Nothing reads or writes this array yet outside getPaymentSummary() itself;
+    // Confirm tab UI, Invoice, Receipt, Analytics and Sync are all untouched.
+    paymentHistory:[],
     createdAt:now(),updatedAt:now()
   };
 }
@@ -2145,6 +2363,59 @@ function dateInp(val,setter,ph){
   });
   return wrap;
 }
+// ── Payment Date field fix (Confirm tab only) ──────────────────────────────
+// dateInp() (used everywhere else) sets inputmode="numeric" on its text side,
+// which on many mobile keyboards shows a plain number pad with NO "/" key —
+// so a user could not manually type "26/07/2026" at all on those phones.
+// This is an isolated copy used ONLY for the Payment Date field: it keeps
+// the exact same native-picker + manual-entry behavior, same internal ISO
+// storage, and the same parseFlexDate()/isoToDMY() validation/formatting,
+// but auto-inserts the "/" separators as the user types digits, so the date
+// can be entered with digits alone (works with a numeric-only keypad) while
+// still accepting manually typed "/", "-" or "." separators exactly as
+// before. No other field or shared function is touched.
+function paymentDateInp(val,setter,ph){
+  var wrap=el('div');wrap.className='inp';
+  wrap.style.cssText='position:relative;display:flex;align-items:center;padding:0';
+  var t=el('input');t.type='text';t.value=isoToDMY(val);t.placeholder=ph||'DD/MM/YYYY';
+  t.setAttribute('inputmode','numeric');t.setAttribute('autocomplete','off');
+  t.style.cssText='flex:1;min-width:0;background:transparent;border:none;outline:none;color:inherit;font-size:15px;font-family:inherit;padding:12px 34px 12px 13px;box-sizing:border-box';
+  var hd=el('input');hd.type='date';hd.value=val||'';hd.setAttribute('aria-label','Pick date');
+  hd.style.cssText='position:absolute;right:2px;top:0;width:34px;height:100%;opacity:0;cursor:pointer;border:none;padding:0;margin:0';
+  var icon=el('span');icon.textContent='📅';icon.setAttribute('aria-hidden','true');
+  icon.style.cssText='position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;opacity:.75';
+  wrap.appendChild(t);wrap.appendChild(hd);wrap.appendChild(icon);
+  function fireInput(){wrap.dispatchEvent(new Event('input'));}
+  t.addEventListener('input',function(){
+    var raw=t.value;
+    // Auto-mask: strip any non-digits and re-insert '/' after DD and MM, so
+    // typing digits alone (no separator key needed) still produces
+    // DD/MM/YYYY as-you-type. Typing '/','-','.' manually still works too,
+    // since they get stripped and re-inserted in the same spots.
+    var digits=raw.replace(/\D/g,'').slice(0,8);
+    var out=digits;
+    if(digits.length>4) out=digits.slice(0,2)+'/'+digits.slice(2,4)+'/'+digits.slice(4);
+    else if(digits.length>2) out=digits.slice(0,2)+'/'+digits.slice(2);
+    if(out!==raw){
+      t.value=out;
+      try{t.setSelectionRange(out.length,out.length);}catch(e){}
+      raw=out;
+    }
+    var iso=parseFlexDate(raw);
+    if(iso){wrap.style.borderColor='';hd.value=iso;setter(iso);}
+    else if(raw.trim()===''){wrap.style.borderColor='';hd.value='';setter('');}
+    else{wrap.style.borderColor='#E74C3C';} // typed but not (yet) a valid complete date
+    fireInput();
+  });
+  t.addEventListener('blur',function(){
+    var iso=parseFlexDate(t.value);
+    if(iso)t.value=isoToDMY(iso); // auto-format e.g. "5/1/26" -> "05/01/2026"
+  });
+  hd.addEventListener('change',function(){
+    if(hd.value){t.value=isoToDMY(hd.value);wrap.style.borderColor='';setter(hd.value);fireInput();}
+  });
+  return wrap;
+}
 // Phase 1A/1B: multiline text field for Follow-up Notes — reuses the same .inp
 // CSS class as every other text input, just rendered as a <textarea>.
 function mkTextarea(val,setter,ph,rows){
@@ -2183,7 +2454,7 @@ function withTooltip(btnEl,text){
   },{passive:true});
   return btnEl;
 }
-function g2(items){var g=el('div');g.className='g2';items.forEach(function(i){g.appendChild(i);});return g;}
+function g2(items,extraClass){var g=el('div');g.className=extraClass?('g2 '+extraClass):'g2';items.forEach(function(i){g.appendChild(i);});return g;}
 // Bug fix: some restricted in-app browsers/WebViews can leave a fetch() or
 // html2canvas render hanging indefinitely (neither resolves nor rejects), which
 // left action buttons stuck showing a spinner forever with no feedback. Racing
@@ -2237,6 +2508,11 @@ function normalizeBooking(b){
   if(b.paymentPolicy===undefined) b.paymentPolicy='';
   if(b.packageTemplateId===undefined) b.packageTemplateId=null;
   if(b.packageTemplateName===undefined) b.packageTemplateName='';
+  // Installment Payment History — Phase 1: initialize ONLY when missing.
+  // Any booking that already has a paymentHistory array (however it got
+  // there) is left completely untouched — this never overwrites existing
+  // payment history.
+  if(b.paymentHistory===undefined) b.paymentHistory=[];
   // Booking Reference No. = Quotation No. (merged per user decision — the
   // quotation number is already permanent, unique and collision-checked, so
   // there's no need for a second, manually-typed reference number that could
@@ -3622,9 +3898,58 @@ function getInvItems(b){
   return (b.invoiceItems&&b.invoiceItems.length)?b.invoiceItems:defaultInvoiceItems(b);
 }
 
+// Installment Payment History — Phase 1: single shared read-only helper.
+// FOUNDATION ONLY — nothing in this phase calls this from makeInv(),
+// makeReceipt(), or bAnalytics() yet; those keep computing received/balance
+// themselves exactly as before, untouched. This exists so a later phase has
+// one correct place to switch over to, instead of the three duplicated
+// calculations already in the codebase.
+//
+// totalDue comes from the same calcOpt()/selected-option engine already used
+// everywhere else (quotations, vouchers, invoices, sticky cost bar).
+//
+// totalReceived sums valid, positive paymentHistory[].amount entries when
+// any exist; otherwise it falls back to the existing single b.paymentReceived
+// field, so every booking created before this phase (empty/missing
+// paymentHistory) produces exactly the same totalReceived it always has.
+// Invalid entries (missing/non-numeric/zero/negative amount, or a
+// non-object array entry) are silently skipped, never thrown.
+function getPaymentSummary(b){
+  var on=(b&&b.selectedOption)||1;
+  var c=calcOpt(b,on);
+  var totalDue=c.grandTotal||0;
+
+  var history=(b&&Array.isArray(b.paymentHistory))?b.paymentHistory:[];
+  var validAmounts=history.filter(function(p){
+    return p&&typeof p==='object'&&isFinite(parseFloat(p.amount))&&parseFloat(p.amount)>0;
+  }).map(function(p){return parseFloat(p.amount);});
+
+  var totalReceived;
+  if(validAmounts.length>0){
+    totalReceived=validAmounts.reduce(function(sum,amt){return sum+amt;},0);
+  } else {
+    // No valid installments recorded yet — fall back to the existing
+    // cumulative field for full backward compatibility.
+    totalReceived=parseFloat(b&&b.paymentReceived)||0;
+  }
+
+  // Round to the nearest paisa before comparing, so float artifacts (e.g.
+  // 0.1+0.2 from summed installments) never misclassify an exact match as
+  // "Partially Paid" or "Overpaid".
+  var balance=Math.round((totalDue-totalReceived)*100)/100;
+
+  var status;
+  if(totalReceived<=0) status='Unpaid';
+  else if(balance>0) status='Partially Paid';
+  else if(balance===0) status='Fully Paid';
+  else status='Overpaid';
+
+  return {totalReceived:totalReceived,balance:balance,status:status};
+}
+
 function makeInv(b){
   var on=b.selectedOption||1,c=calcOpt(b,on);
-  var received=parseFloat(b.paymentReceived)||0;
+  var received=getPaymentSummary(b).totalReceived;
   var bal=c.grandTotal-received;
   var paid=bal<=0;
   var invNo=(b.bookingRef||b.quotNo||'')+'-INV';
@@ -3747,14 +4072,55 @@ function numToWords(num){
 
 // Feature (7): Payment Receipt generator — issued whenever an advance/part/full
 // payment is received against a booking.
-function makeReceipt(b){
+//
+// Phase 3 (individual installment receipts): makeReceipt(b) — called with no
+// second argument — is COMPLETELY UNCHANGED for every existing call site
+// (Generate Receipt menu items/buttons across the app all still call it this
+// way), so old bookings that only ever used the single paymentReceived /
+// paymentMode / paymentDate / receivedBy / receiptNo fields keep producing
+// the exact same receipt as before — legacy support is untouched.
+//
+// The new, optional paymentIdx argument lets the Payment History installment
+// editor request a receipt for ONE specific entry in b.paymentHistory[]. When
+// given a valid index, the receipt uses THAT payment's own amount/date/mode/
+// receivedBy/receiptNo (never the cumulative paymentReceived total), and adds
+// the Total Bill Amount + Total Received Till This Payment rows so the
+// recipient can see exactly how this installment fits into the whole booking.
+function makeReceipt(b,paymentIdx){
   var on=b.selectedOption||1,c=calcOpt(b,on);
-  var received=parseFloat(b.paymentReceived)||0;
   var invItems=getInvItems(b);
   var grandTotal=invItems.reduce(function(sum,it){return sum+((parseFloat(it.qty)||0)*(parseFloat(it.rate)||0));},0);
-  var bal=Math.max(grandTotal-received,0);
-  var rctNo=b.receiptNo||((b.bookingRef||b.quotNo||'')+'-RCT');
-  var rctDate=b.paymentDate||b.bookingDate||b.createdAt;
+
+  var history=Array.isArray(b.paymentHistory)?b.paymentHistory:[];
+  var p=(paymentIdx!==undefined&&paymentIdx!==null&&history[paymentIdx]&&typeof history[paymentIdx]==='object')?history[paymentIdx]:null;
+
+  var received,rctDate,paymentMode,receivedByName,rctNo,totalTillThis,installmentLabel;
+  if(p){
+    // ── Individual installment receipt ──
+    received=parseFloat(p.amount)||0;
+    rctDate=p.date||b.bookingDate||b.createdAt;
+    paymentMode=p.mode||'Cash';
+    receivedByName=p.receivedBy||'Mishri Holidays';
+    rctNo=p.receiptNo||((b.bookingRef||b.quotNo||'')+'-RCT-'+(paymentIdx+1));
+    // Cumulative total received through and including this payment, in the
+    // order the installments were entered — mirrors getPaymentSummary()'s
+    // own valid-entry filtering (skip missing/non-numeric/zero/negative).
+    totalTillThis=history.slice(0,paymentIdx+1).reduce(function(sum,pp){
+      var amt=pp&&typeof pp==='object'?parseFloat(pp.amount):NaN;
+      return sum+((isFinite(amt)&&amt>0)?amt:0);
+    },0);
+    installmentLabel='Installment Payment #'+(paymentIdx+1);
+  } else {
+    // ── Legacy single-payment receipt (unchanged) ──
+    received=getPaymentSummary(b).totalReceived;
+    rctDate=b.paymentDate||b.bookingDate||b.createdAt;
+    paymentMode=b.paymentMode||'Cash';
+    receivedByName=b.receivedBy||'Mishri Holidays';
+    rctNo=b.receiptNo||((b.bookingRef||b.quotNo||'')+'-RCT');
+    totalTillThis=received;
+    installmentLabel=null;
+  }
+  var bal=Math.max(grandTotal-totalTillThis,0);
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Receipt')+'</title>'
     +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
@@ -3799,6 +4165,7 @@ function makeReceipt(b){
 
     +'<div class="hd"><div>'+docLogoHtml(44)+'<div class="contact-line">'+docContactHtml()+'</div></div>'
     +'<div class="inv-tag"><div class="inv-title">RECEIPT</div>'
+    +(installmentLabel?'<div class="inv-meta" style="color:#1e7e42;font-weight:700">'+installmentLabel+'</div>':'')
     +'<div class="inv-meta">Receipt No.: <b>'+rctNo+'</b></div>'
     +'<div class="inv-meta">Date: <b>'+fmtD(rctDate)+'</b></div>'
     +'</div></div>'
@@ -3808,15 +4175,16 @@ function makeReceipt(b){
     +'<div class="bx"><div class="bt">Against Booking</div><p>Booking Ref: <b>'+(b.bookingRef||b.quotNo)+'</b></p><p>Destination: '+(b.destination||'—')+'</p><p>'+fmtD(b.startDate)+' &nbsp;&rarr;&nbsp; '+fmtD(b.endDate)+'</p></div>'
     +'</div>'
 
-    +'<div class="amt-strip"><div class="lbl">Amount Received</div><div class="val">'+fmt(received)+'</div><div class="words">Rupees '+numToWords(received)+' Only</div></div>'
+    +'<div class="amt-strip"><div class="lbl">Amount Received'+(installmentLabel?' (This Payment)':'')+'</div><div class="val">'+fmt(received)+'</div><div class="words">Rupees '+numToWords(received)+' Only</div></div>'
 
     +'<table class="dt">'
-    +'<tr><td class="k">Payment Mode</td><td class="v">'+(b.paymentMode||'Cash')+'</td></tr>'
-    +'<tr><td class="k">Received By</td><td class="v">'+(b.receivedBy||'Mishri Holidays')+'</td></tr>'
-    +'<tr><td class="k">Total Package Cost</td><td class="v">'+fmt(grandTotal)+'</td></tr>'
+    +'<tr><td class="k">Payment Mode</td><td class="v">'+(paymentMode||'Cash')+'</td></tr>'
+    +'<tr><td class="k">Received By</td><td class="v">'+(receivedByName||'Mishri Holidays')+'</td></tr>'
+    +'<tr><td class="k">Total Bill Amount</td><td class="v">'+fmt(grandTotal)+'</td></tr>'
+    +'<tr><td class="k">Total Received Till This Payment</td><td class="v">'+fmt(totalTillThis)+'</td></tr>'
     +'</table>'
 
-    +'<div class="bal-strip"><div><div class="lbl">Balance Due</div><div class="val" style="color:'+(bal<=0?'#1e7e42':'#c0392b')+'">'+fmt(bal)+'</div></div>'
+    +'<div class="bal-strip"><div><div class="lbl">Remaining Balance</div><div class="val" style="color:'+(bal<=0?'#1e7e42':'#c0392b')+'">'+fmt(bal)+'</div></div>'
     +'<div style="text-align:right"><div class="lbl">Status</div><div class="val" style="color:'+(bal<=0?'#1e7e42':'#B8892F')+'">'+(bal<=0?'FULLY PAID':'PART PAYMENT')+'</div></div></div>'
 
     +'<div class="terms"><div class="terms-title">Notes</div><ul>'
@@ -3868,6 +4236,21 @@ function bDash(){
     var pc2=priorityColor(b.priority);
     var initials=getInitials(b.guestName);
     var card=el('div');card.className='card';card.style.cursor='pointer';
+    // Dashboard Payment Status — only shown once a booking is Confirmed/Completed
+    // (same "won" definition bAnalytics() already uses). Reuses the existing
+    // getPaymentSummary(b) for all figures; no calculation logic duplicated here.
+    // PH_STATUS_COLORS (defined in the Confirm tab) is out of scope for this
+    // function, so an equivalent local color map is used for this card only.
+    var payHtml='';
+    if(b.status==='Confirmed'||b.status==='Completed'){
+      var DASH_PAY_COLORS={'Unpaid':'#8A8272','Partially Paid':'#C87F0A','Fully Paid':'#1E8449','Overpaid':'#9B59B6'};
+      var psum=getPaymentSummary(b);
+      var pColor=DASH_PAY_COLORS[psum.status]||'#8A8272';
+      payHtml='<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0eee9;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<span class="badge" style="background:'+pColor+'1e;color:'+pColor+'">Payment Status: '+psum.status+'</span>'
+        +'<span style="font-size:11px;color:#8A8090">Received: '+fmt(psum.totalReceived)+' &bull; Balance: '+fmt(psum.balance)+'</span>'
+        +'</div>';
+    }
     card.innerHTML='<div class="row">'
       +'<div style="display:flex;align-items:center;gap:11px;min-width:0">'
       +'<div class="icon-badge" style="background:'+sc2+'1f;color:'+sc2+';font-size:13px;font-weight:800;font-family:Poppins">'+initials+'</div>'
@@ -3878,7 +4261,8 @@ function bDash(){
       +(b.followUpDate?'<span style="font-size:10px;color:#8A8090">&#128197; '+fmtD(b.followUpDate)+'</span>':'')
       +'</div></div></div>'
       +'<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc2+'22;color:'+sc2+'">'+b.status+'</span></div>'
-      +'</div>';
+      +'</div>'
+      +payHtml;
     card.addEventListener('click',function(){APP.edit=JSON.parse(JSON.stringify(b));APP.ftab='guest';go('form');});
     attachLongPress(card,b);
     wrap.appendChild(card);});}
@@ -3954,7 +4338,7 @@ function bAnalytics(){
       // revision-correct, and automatically ignore inactive revisions,
       // with zero new calculation logic.
       var c=calcOpt(b,b.selectedOption||1); // same option/engine used app-wide
-      var received=parseFloat(b.paymentReceived)||0;
+      var received=getPaymentSummary(b).totalReceived;
       if(received < c.grandTotal) return; // Payment Status filter (same rule as FULLY PAID badge)
       var dateStr=b.startDate; // Tour Start Date / Check-in — travel month, not Booking Date
       if(!dateStr) return;
@@ -4271,7 +4655,7 @@ function buildTab(tab){
     // Opens a searchable list of past unique customers; picking one fills
     // Name/Contact/Email only. Destination is left blank for the user to
     // enter, since it's different for every trip.
-    var pickBtn=btn('👤 Select Existing Customer','btn bm sm',function(){openCustomerPicker(function(cust){
+    var pickBtn=btn('👤 Select Existing Customer','btn bm sm pickcust',function(){openCustomerPicker(function(cust){
       b.guestName=cust.guestName;guestNameInput.value=cust.guestName||'';
       b.contact=cust.contact;contactInput.value=cust.contact||'';
       b.email=cust.email;emailInput.value=cust.email||'';
@@ -4323,7 +4707,7 @@ function buildTab(tab){
     pkgBar.appendChild(btn('📥 Select Package Template','btn sm bn',function(){openPkgPicker();}));
     pkgBar.appendChild(btn('💾 Save as New Package Template','btn sm og',function(){openPkgSaveModal();}));
     frag.appendChild(pkgBar);
-    var loadedNotice=el('div');loadedNotice.style.cssText='font-size:11px;color:#8A8090;margin-bottom:10px';
+    var loadedNotice=el('div');loadedNotice.style.cssText='font-size:11px;color:#8A8272;margin-bottom:10px';
     function renderLoadedNotice(){
       loadedNotice.innerHTML=b.packageTemplateName?('Loaded from package template: <b style="color:#D4A843">'+b.packageTemplateName+'</b> (editing here will not change that template)'):'';
     }
@@ -4431,7 +4815,7 @@ function buildTab(tab){
     {
       var revWrap=el('div');revWrap.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap';
       if(b.revisions && b.revisions.length>1){
-        var revLbl=el('span');revLbl.textContent='Revision:';revLbl.style.cssText='font-size:12px;font-weight:700;color:#8A8090';
+        var revLbl=el('span');revLbl.textContent='Revision:';revLbl.style.cssText='font-size:12px;font-weight:700;color:#8A8272';
         var revSelEl=sel(String((b.selectedRevision===undefined||b.selectedRevision===null)?0:b.selectedRevision),b.revisions.map(function(r){return{v:r.revNo,l:'Revision '+r.revNo};}),function(v){
           activateRevision(b,parseInt(v));
           // Full tab rebuild (reuses the exact sw(id) closure from bForm(),
@@ -4466,10 +4850,10 @@ function buildTab(tab){
       strip.style.cssText='background:'+od.col+'22;border:1.5px solid '+od.col+'55;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center';
       function refreshStrip(){
         var c0=calcOpt(b,od.n);
-        strip.innerHTML='<div><div style="font-size:11px;color:#8A8090;margin-bottom:3px">Hotel: <b style="color:#E8E0D0">'+fmt(c0.hotelCost)+'</b>  +  Vehicle: <b style="color:#E8E0D0">'+fmt(c0.vehCost)+'</b>  +  Markup: <b style="color:#E67E22">'+fmt(c0.markupAmt)+'</b></div>'
-          +'<div style="font-size:10px;color:#8A8090">Per Adult: <b style="color:'+od.col+'">'+fmt(c0.perAdult)+'</b>'+(c0.chargeableChild>0?'  &bull; Per Child(WB): <b style="color:'+od.col+'">'+fmt(c0.perChild)+'</b>':'')+(c0.childNoBedQty>0?'  &bull; Per Child(NB): <b style="color:'+od.col+'">'+fmt(c0.perChildNoBed)+'</b>':'')+(c0.maxExtraMattress>0?'  &bull; 🛏️ Mattress: <b style="color:'+od.col+'">'+c0.maxExtraMattress+'</b>':'')+'</div></div>'
+        strip.innerHTML='<div><div style="font-size:11px;color:#8A8272;margin-bottom:3px">Hotel: <b style="color:#2A2823">'+fmt(c0.hotelCost)+'</b>  +  Vehicle: <b style="color:#2A2823">'+fmt(c0.vehCost)+'</b>  +  Markup: <b style="color:#C87F0A">'+fmt(c0.markupAmt)+'</b></div>'
+          +'<div style="font-size:10px;color:#8A8272">Per Adult: <b style="color:'+od.col+'">'+fmt(c0.perAdult)+'</b>'+(c0.chargeableChild>0?'  &bull; Per Child(WB): <b style="color:'+od.col+'">'+fmt(c0.perChild)+'</b>':'')+(c0.childNoBedQty>0?'  &bull; Per Child(NB): <b style="color:'+od.col+'">'+fmt(c0.perChildNoBed)+'</b>':'')+(c0.maxExtraMattress>0?'  &bull; 🛏️ Mattress: <b style="color:'+od.col+'">'+c0.maxExtraMattress+'</b>':'')+'</div></div>'
           +'<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:'+od.col+'">'+fmt(c0.grandTotal)+'</div>'
-          +'<div style="font-size:10px;color:#8A8090">Grand Total</div></div>';
+          +'<div style="font-size:10px;color:#8A8272">Grand Total</div></div>';
       }
       refreshStrip();
       panel.appendChild(strip);
@@ -4494,20 +4878,25 @@ function buildTab(tab){
       document.getElementById('roomCatList').innerHTML=ROOM_CATS.map(function(r){return '<option value="'+r+'">';}).join('');
 
       if(od.n!==1){
-        var syncNote=el('div');syncNote.style.cssText='font-size:10.5px;color:#8A8090;margin-bottom:8px;font-style:italic';
+        var syncNote=el('div');syncNote.style.cssText='font-size:10.5px;color:#8A8272;margin-bottom:8px;font-style:italic';
         syncNote.textContent='Place / Check-In-Out / Rooms / Extra Adults / Children / Mattress are auto-filled from Option 1 when a hotel row is added — edit freely below, changes here stay only in Option '+od.n+'.';
         panel.appendChild(syncNote);
       }
-      var cwbCnbNote=el('div');cwbCnbNote.style.cssText='font-size:10px;color:#9b96a3;margin-bottom:8px';
+      var cwbCnbNote=el('div');cwbCnbNote.style.cssText='font-size:10px;color:#8A8272;margin-bottom:8px';
       cwbCnbNote.innerHTML='<b>CWB</b> = Child With Bed (extra mattress) &nbsp;•&nbsp; <b>CNB</b> = Child No Bed (shares parent\u2019s bed, usually a lower rate)';
       panel.appendChild(cwbCnbNote);
 
-      var tblWrap=el('div');tblWrap.style.cssText='overflow-x:auto;border:1.5px solid '+od.col+'33;border-radius:8px;margin-bottom:8px';
+      // Desktop-only wide table wrapper — hidden on mobile (<=768px) via the
+      // .hotel-desktop-tblwrap CSS rule (same 768px breakpoint every other
+      // mobile-only block in this app already uses). Nothing about the table
+      // itself, its columns, or its data source changes — mobile gets its own
+      // card-based rendering (below) built from the exact same hotelsArr.
+      var tblWrap=el('div');tblWrap.className='hotel-desktop-tblwrap';tblWrap.style.cssText='overflow-x:auto;border:1.5px solid '+od.col+'33;border-radius:8px;margin-bottom:8px';
       var table=el('table');table.style.cssText='border-collapse:collapse;width:100%;font-size:11px;white-space:nowrap';
       var thead=el('thead');
       var headCols=['#','Place','Hotel Name','Room Cat.','Check-In','Check-Out','Rooms','Meal','Rate/Room','Ex.Adult','Ex.Rate','CWB','CWB Rate','CNB','CNB Rate','Mattress',''];
       var htr=el('tr');
-      headCols.forEach(function(hc){var th=el('th');th.textContent=hc;th.style.cssText='background:'+od.col+'22;color:#E8E0D0;font-size:10px;padding:6px 6px;text-align:left;position:sticky;top:0';htr.appendChild(th);});
+      headCols.forEach(function(hc){var th=el('th');th.textContent=hc;th.style.cssText='background:'+od.col+'22;color:#2A2823;font-size:10px;padding:6px 6px;text-align:left;position:sticky;top:0';htr.appendChild(th);});
       thead.appendChild(htr);table.appendChild(thead);
       var tbody=el('tbody');table.appendChild(tbody);
 
@@ -4519,8 +4908,8 @@ function buildTab(tab){
           }
         }
         function tdWrap(elm){var td=el('td');td.style.cssText='padding:4px 5px;min-width:78px';elm.style.marginBottom='0';elm.style.padding='6px 7px';elm.style.fontSize='11px';td.appendChild(elm);return td;}
-        var tr=el('tr');tr.style.borderTop='1px solid #2A2D3A';
-        var idxTd=el('td');idxTd.textContent=(hidx+1);idxTd.style.cssText='padding:4px 5px;color:#8A8090;font-weight:700';tr.appendChild(idxTd);
+        var tr=el('tr');tr.style.borderTop='1px solid #E7E3D8';
+        var idxTd=el('td');idxTd.textContent=(hidx+1);idxTd.style.cssText='padding:4px 5px;color:#8A8272;font-weight:700';tr.appendChild(idxTd);
 
         var placeInput=inp(h.place,function(v){updH('place',v);});
         tr.appendChild(tdWrap(placeInput));
@@ -4615,14 +5004,134 @@ function buildTab(tab){
       });
       tblWrap.appendChild(table);panel.appendChild(tblWrap);
 
+      // ── Mobile Hotels Tab — Dynamic Card-Based Layout ──────────────────
+      // Desktop-only (see .hotel-desktop-tblwrap above); on mobile (<=768px)
+      // this card container is shown instead via the .hotel-mobile-cards CSS
+      // rule below. Exactly one card is generated per entry in hotelsArr —
+      // never hardcoded — so 1 hotel = 1 card, 3 hotels = 3 cards, etc., and
+      // switching Option 1/2/3 rebuilds this from that option's own
+      // getOptFields(b,od.n).hotels array, so cards never mix between
+      // options. Every field writes through the exact same setHotelField()/
+      // updHMobile() (mirrors updH() above) pipeline as the desktop table —
+      // no new data model, no direct h.field=value mutations.
+      var cardsWrap=el('div');cardsWrap.className='hotel-mobile-cards';
+
+      hotelsArr.forEach(function(h,hidx){
+        function updHMobile(k,v){
+          setHotelField(b,od.n,hidx,k,v);
+          if(od.n===1 && (k==='place'||k==='checkIn'||k==='checkOut'||k==='rooms'||k==='extraAdults'||k==='chargeableChild'||k==='childNoBed'||k==='extraMattress')){
+            [2,3].forEach(function(altN){setHotelField(b,altN,hidx,k,v);});
+          }
+        }
+        var card=el('div');card.className='hcard-m';card.style.border='1.5px solid '+od.col+'55';
+
+        var head=el('div');head.className='hcard-m-head';head.style.background=od.col+'22';
+        var placeInputM=inp(h.place,function(v){updHMobile('place',v);},'text','City / Place');
+        placeInputM.classList.add('hcard-m-place');
+        var pin=el('span');pin.textContent='📍';pin.style.cssText='margin-right:6px';
+        head.appendChild(pin);head.appendChild(placeInputM);
+        card.appendChild(head);
+
+        var body=el('div');body.className='hcard-m-body';
+
+        var hotelNameInputM=inp(h.hotelName,function(v){updHMobile('hotelName',v);},'text','Hotel name');
+        hotelNameInputM.setAttribute('list','hotelDirList');
+        hotelNameInputM.classList.add('hcard-m-hotelname');
+        body.appendChild(hotelNameInputM);
+
+        var rcInputM=inp(h.roomCat,function(v){updHMobile('roomCat',v);},'text','Room type');
+        rcInputM.setAttribute('list','roomCatList');rcInputM.classList.add('hcard-m-roomcat');
+        body.appendChild(rcInputM);
+
+        var ciInputM=dateInp(h.checkIn,function(v){updHMobile('checkIn',v);});
+        var coInputM=dateInp(h.checkOut,function(v){updHMobile('checkOut',v);});
+        var datesRow=el('div');datesRow.className='hcard-m-dates';
+        var arrow=el('span');arrow.textContent='→';arrow.className='hcard-m-arrow';
+        datesRow.appendChild(ciInputM);datesRow.appendChild(arrow);datesRow.appendChild(coInputM);
+        body.appendChild(datesRow);
+
+        var nightsDiv=el('div');nightsDiv.className='hcard-m-nights';
+        function refreshNightsM(){
+          var invalid=h.checkIn&&h.checkOut&&nts(h.checkIn,h.checkOut)<=0;
+          var n=(h.checkIn&&h.checkOut&&!invalid)?nts(h.checkIn,h.checkOut):0;
+          nightsDiv.textContent=n+' Night'+(n===1?'':'s');
+          nightsDiv.style.color=invalid?'#E74C3C':od.col;
+        }
+        refreshNightsM();
+        ciInputM.addEventListener('input',function(){refreshNightsM();refreshSummary();});
+        coInputM.addEventListener('input',function(){refreshNightsM();refreshSummary();});
+        body.appendChild(nightsDiv);
+
+        var roomsInputM=inp(h.rooms,function(v){updHMobile('rooms',parseInt(v)||1);},'number');
+        roomsInputM.addEventListener('input',refreshSummary);
+        var mattressInputM=inp(h.extraMattress,function(v){updHMobile('extraMattress',parseInt(v)||0);},'number','0');
+        mattressInputM.addEventListener('input',refreshSummary);
+        body.appendChild(g2([fld('Rooms',roomsInputM),fld('Extra Mattress',mattressInputM)]));
+
+        var mealSelM=sel(h.mealPlan,MEALS,function(v){updHMobile('mealPlan',v);});
+        body.appendChild(fld('Meal Plan',mealSelM));
+
+        // Costing/rate fields — same data as the desktop table's rightmost
+        // columns, tucked into a collapsible so the compact card stays
+        // focused on the fields the spec calls out, without removing the
+        // ability to edit rates from mobile.
+        var ratesDetails=el('details');ratesDetails.className='hcard-m-rates';
+        var ratesSummary=el('summary');ratesSummary.textContent='Rates & Extra Charges';
+        ratesDetails.appendChild(ratesSummary);
+        var rateInputM=inp(h.ratePerRoom,function(v){updHMobile('ratePerRoom',parseFloat(v)||0);},'number','0');
+        rateInputM.addEventListener('input',refreshSummary);
+        ratesDetails.appendChild(fld('Rate / Room',rateInputM));
+        var extraAdultsInputM=inp(h.extraAdults,function(v){updHMobile('extraAdults',parseInt(v)||0);},'number','0');
+        extraAdultsInputM.addEventListener('input',refreshSummary);
+        var extraAdultRateInputM=inp(h.extraAdultRate,function(v){updHMobile('extraAdultRate',parseFloat(v)||0);},'number','0');
+        extraAdultRateInputM.addEventListener('input',refreshSummary);
+        ratesDetails.appendChild(g2([fld('Extra Adults',extraAdultsInputM),fld('Ex.Adult Rate',extraAdultRateInputM)]));
+        var chargeableChildInputM=inp(h.chargeableChild,function(v){updHMobile('chargeableChild',parseInt(v)||0);},'number','0');
+        chargeableChildInputM.addEventListener('input',refreshSummary);
+        var childRateInputM=inp(h.childRate,function(v){updHMobile('childRate',parseFloat(v)||0);},'number','0');
+        childRateInputM.addEventListener('input',refreshSummary);
+        ratesDetails.appendChild(g2([fld('CWB',chargeableChildInputM),fld('CWB Rate',childRateInputM)]));
+        var childNoBedInputM=inp(h.childNoBed,function(v){updHMobile('childNoBed',parseInt(v)||0);},'number','0');
+        childNoBedInputM.addEventListener('input',refreshSummary);
+        var childNoBedRateInputM=inp(h.childNoBedRate,function(v){updHMobile('childNoBedRate',parseFloat(v)||0);},'number','0');
+        childNoBedRateInputM.addEventListener('input',refreshSummary);
+        ratesDetails.appendChild(g2([fld('CNB',childNoBedInputM),fld('CNB Rate',childNoBedRateInputM)]));
+        body.appendChild(ratesDetails);
+
+        // Voucher / Confirmation Details — per-card collapsible (mirrors the
+        // shared desktop vDetails block below, but scoped to this one hotel
+        // for the mobile card layout). Writes go through setHotelField()
+        // exactly like the desktop version — never a direct h.field=value
+        // mutation — so the Revision System and Voucher generation keep
+        // reading correct, revision-safe data either way.
+        var voucherDetails=el('details');voucherDetails.className='hcard-m-voucher';
+        var voucherSummary=el('summary');voucherSummary.textContent='▸ Voucher / Confirmation Details';
+        voucherDetails.appendChild(voucherSummary);
+        voucherDetails.appendChild(fld('Hotel Confirmation No.',inp(h.confirmNo,function(v){setHotelField(b,od.n,hidx,'confirmNo',v);},'text','e.g. HTL-CONF-4521')));
+        voucherDetails.appendChild(fld('Hotel Address',inp(h.address,function(v){setHotelField(b,od.n,hidx,'address',v);},'text','Full hotel address')));
+        voucherDetails.appendChild(fld('Hotel Contact Number',inp(h.phone,function(v){setHotelField(b,od.n,hidx,'phone',v);},'text','+91 XXXXX XXXXX')));
+        voucherDetails.appendChild(g2([fld('Check In Time',inp(h.checkInTime,function(v){setHotelField(b,od.n,hidx,'checkInTime',v);},'time')),fld('Check Out Time',inp(h.checkOutTime,function(v){setHotelField(b,od.n,hidx,'checkOutTime',v);},'time'))]));
+        body.appendChild(voucherDetails);
+
+        if(hotelsArr.length>1){
+          var delBtnM=el('button');delBtnM.textContent='✕ Remove Hotel';delBtnM.type='button';delBtnM.className='hcard-m-del';
+          delBtnM.addEventListener('click',function(){removeHotelRow(b,hidx);switchOpt(od.n);});
+          body.appendChild(delBtnM);
+        }
+
+        card.appendChild(body);
+        cardsWrap.appendChild(card);
+      });
+      panel.appendChild(cardsWrap);
+
       var addHotelBtn=btn('+ Add Hotel','btn sm og',function(){addHotelRow(b);switchOpt(od.n);});
       addHotelBtn.style.marginBottom='10px';panel.appendChild(addHotelBtn);
 
       // Voucher/confirmation details (Confirmation No., address, phone, in/out time) —
       // not needed to cost a quotation, so tucked away collapsed by default and only
       // opened once the booking is actually confirmed and a voucher is being prepared.
-      var vDetails=el('details');vDetails.style.cssText='margin-bottom:10px';
-      var vSummary=el('summary');vSummary.style.cssText='font-size:11px;color:#8A8090;cursor:pointer;padding:6px 0';vSummary.textContent='🎫 Voucher / confirmation details (optional, per hotel)';
+      var vDetails=el('details');vDetails.className='hotel-desktop-vdetails';vDetails.style.cssText='margin-bottom:10px';
+      var vSummary=el('summary');vSummary.style.cssText='font-size:11px;color:#8A8272;cursor:pointer;padding:6px 0';vSummary.textContent='🎫 Voucher / confirmation details (optional, per hotel)';
       vDetails.appendChild(vSummary);
       hotelsArr.forEach(function(h,hidx){
         var vb=el('div');vb.className='hblock';vb.style.borderColor=od.col+'33';
@@ -4645,7 +5154,7 @@ function buildTab(tab){
 
       // Markup section
       var ml=el('div');ml.className='sect';ml.textContent='Markup & Service Charges';panel.appendChild(ml);
-      var mkCard=el('div');mkCard.style.cssText='background:#0F1117;border:1px solid #2A2D3A;border-radius:10px;padding:12px';
+      var mkCard=el('div');mkCard.style.cssText='background:#FBFAF7;border:1px solid #E6E1D3;border-radius:10px;padding:12px';
       var tRow=el('div');tRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
       var bPct=el('div');bPct.className='mkbtn';bPct.style.borderColor='#D4A843';bPct.textContent='% Percentage';
       var bFix=el('div');bFix.className='mkbtn';bFix.style.borderColor='#3498DB';bFix.textContent='Rs. Fixed';
@@ -4723,22 +5232,22 @@ function buildTab(tab){
         // choice is based purely on the sign/size of figures calcOpt() already
         // returned (c2.markupAmt) — no recalculation.
         var profitCls = c2.markupAmt>0 ? 'cs-profit-pos' : (c2.markupAmt<0 ? 'cs-profit-neg' : 'cs-profit-zero');
-        sb.innerHTML='<div style="font-size:11px;font-weight:700;color:#8A8090;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Option '+od.n+' Cost Breakdown</div>'
-          +'<div style="background:#0F1117;border-radius:8px;overflow:hidden;margin-bottom:8px">'
-          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#8A8090">&#127968; Hotel Cost</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.hotelCost)+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#8A8090">&#128663; Vehicle Cost</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.vehCost)+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A;font-weight:700"><span style="font-size:12px;color:#8A8090">Base Total</span><span class="cs-cost" style="color:#E8E0D0">'+fmt(c2.base)+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#E67E22">+ Markup / Service</span><span class="'+profitCls+'" style="font-weight:700;color:#E67E22">'+fmt(c2.markupAmt)+'</span></div>'
-          +(c2.misc>0?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2A2D3A"><span style="font-size:12px;color:#E67E22">+ Misc</span><span style="font-weight:700;color:#E67E22">'+fmt(c2.misc)+'</span></div>':'')
-          +'<div style="display:flex;justify-content:space-between;padding:8px 12px"><span style="font-size:12px;color:#8A8090">+ GST ('+c2.gstPct+'%)</span><span style="font-weight:700;color:#E8E0D0">'+fmt(c2.gstAmt)+'</span></div>'
+        sb.innerHTML='<div style="font-size:11px;font-weight:700;color:#8A8272;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Option '+od.n+' Cost Breakdown</div>'
+          +'<div style="background:#FBFAF7;border-radius:8px;overflow:hidden;margin-bottom:8px;border:1px solid #E6E1D3">'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #E7E3D8"><span style="font-size:12px;color:#8A8272">&#127968; Hotel Cost</span><span style="font-weight:700;color:#2A2823">'+fmt(c2.hotelCost)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #E7E3D8"><span style="font-size:12px;color:#8A8272">&#128663; Vehicle Cost</span><span style="font-weight:700;color:#2A2823">'+fmt(c2.vehCost)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #E7E3D8;font-weight:700"><span style="font-size:12px;color:#8A8272">Base Total</span><span class="cs-cost" style="color:#2A2823">'+fmt(c2.base)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #E7E3D8"><span style="font-size:12px;color:#C87F0A">+ Markup / Service</span><span class="'+profitCls+'" style="font-weight:700;color:#C87F0A">'+fmt(c2.markupAmt)+'</span></div>'
+          +(c2.misc>0?'<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #E7E3D8"><span style="font-size:12px;color:#C87F0A">+ Misc</span><span style="font-weight:700;color:#C87F0A">'+fmt(c2.misc)+'</span></div>':'')
+          +'<div style="display:flex;justify-content:space-between;padding:8px 12px"><span style="font-size:12px;color:#8A8272">+ GST ('+c2.gstPct+'%)</span><span style="font-weight:700;color:#2A2823">'+fmt(c2.gstAmt)+'</span></div>'
           +'</div>'
-          +'<div style="background:'+od.col+'33;border-radius:8px;padding:12px;text-align:center">'
-          +'<div style="font-size:11px;color:#8A8090;margin-bottom:4px">GRAND TOTAL</div>'
+          +'<div style="background:'+od.col+'22;border-radius:8px;padding:12px;text-align:center;border:1px solid '+od.col+'44">'
+          +'<div style="font-size:11px;color:#8A8272;margin-bottom:4px">GRAND TOTAL</div>'
           +'<div style="font-size:26px;font-weight:900;color:'+od.col+'">'+fmt(c2.grandTotal)+'</div>'
           +'<div style="display:flex;gap:14px;justify-content:center;margin-top:8px;flex-wrap:wrap">'
-          +'<span style="font-size:12px;color:#8A8090">Per Adult: <b style="color:'+od.col+'">'+fmt(c2.perAdult)+'</b></span>'
-          +(c2.chargeableChild>0?'<span style="font-size:12px;color:#8A8090">Per Child (WB): <b style="color:'+od.col+'">'+fmt(c2.perChild)+'</b></span>':'')
-          +(c2.childNoBedQty>0?'<span style="font-size:12px;color:#8A8090">Per Child (NB): <b style="color:'+od.col+'">'+fmt(c2.perChildNoBed)+'</b></span>':'')
+          +'<span style="font-size:12px;color:#8A8272">Per Adult: <b style="color:'+od.col+'">'+fmt(c2.perAdult)+'</b></span>'
+          +(c2.chargeableChild>0?'<span style="font-size:12px;color:#8A8272">Per Child (WB): <b style="color:'+od.col+'">'+fmt(c2.perChild)+'</b></span>':'')
+          +(c2.childNoBedQty>0?'<span style="font-size:12px;color:#8A8272">Per Child (NB): <b style="color:'+od.col+'">'+fmt(c2.perChildNoBed)+'</b></span>':'')
           +'</div></div>';
         // Bug fix (Live Cost Summary): a costing edit must also refresh the top
         // strip (same panel) and the 3 Option Summary buttons above (Options 1/2/3
@@ -4867,17 +5376,122 @@ function buildTab(tab){
     // Feature (7): payment receipt details
     frag.appendChild(g2([
       fld('Payment Mode',sel(b.paymentMode||'Cash',[{v:'Cash',l:'Cash'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'UPI',l:'UPI'},{v:'Card',l:'Card'},{v:'Cheque',l:'Cheque'}],function(v){b.paymentMode=v;})),
-      fld('Payment Date',dateInp(b.paymentDate,function(v){b.paymentDate=v;}))
+      fld('Payment Date',paymentDateInp(b.paymentDate,function(v){b.paymentDate=v;}))
     ]));
     frag.appendChild(g2([
       fld('Received By',inp(b.receivedBy,function(v){b.receivedBy=v;},'text','Staff / Cashier name')),
       fld('Receipt No. (optional)',inp(b.receiptNo,function(v){b.receiptNo=v;},'text','auto if left blank'))
     ]));
 
+    // ── Installment Payment History — Phase 2 ──────────────────────
+    // Purely additive: every legacy field above (paymentReceived,
+    // paymentMode, paymentDate, receivedBy, receiptNo) is completely
+    // untouched — this section adds an optional multi-installment list
+    // alongside them. getPaymentSummary(b) (Phase 1) already sums valid
+    // paymentHistory entries when present and falls back to the legacy
+    // paymentReceived field when paymentHistory is empty, so this UI only
+    // ever needs to read/display that helper's output — no duplicate
+    // totals logic here.
+    var phSect=el('div');phSect.className='sect';phSect.textContent='💰 Payment History';
+    frag.appendChild(phSect);
+
+    var phSummary=el('div');phSummary.className='card';
+    frag.appendChild(phSummary);
+
+    var phList=el('div');
+    frag.appendChild(phList);
+
+    function rerenderConfirmTab(){
+      var tc=frag.parentNode;
+      if(tc){tc.innerHTML='';tc.appendChild(buildTab('confirm'));}
+    }
+
+    var PH_MODE_OPTS=[{v:'Cash',l:'Cash'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'UPI',l:'UPI'},{v:'Card',l:'Card'},{v:'Cheque',l:'Cheque'}];
+    var PH_STATUS_COLORS={'Unpaid':'#8A8272','Partially Paid':'#C87F0A','Fully Paid':'#1E8449','Overpaid':'#9B59B6'};
+
+    function renderPaymentSummary(){
+      var sum=getPaymentSummary(b);
+      var sc=PH_STATUS_COLORS[sum.status]||'#8A8272';
+      phSummary.innerHTML=
+        '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+        +'<div><div style="font-size:10.5px;color:#8A8272;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Total Received</div>'
+        +'<div style="font-size:19px;font-weight:800;color:#1E8449">'+fmt(sum.totalReceived)+'</div></div>'
+        +'<div style="text-align:right"><div style="font-size:10.5px;color:#8A8272;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">'+(sum.balance<0?'Overpaid By':'Balance Due')+'</div>'
+        +'<div style="font-size:19px;font-weight:800;color:'+(sum.balance>0?'#C0392B':(sum.balance<0?'#9B59B6':'#2A2823'))+'">'+fmt(Math.abs(sum.balance))+'</div></div>'
+        +'</div>'
+        +'<div style="margin-top:10px;display:inline-block;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;background:'+sc+'1E;color:'+sc+';border:1px solid '+sc+'55">'+sum.status+'</div>';
+    }
+
+    function renderPaymentList(){
+      phList.innerHTML='';
+      var history=Array.isArray(b.paymentHistory)?b.paymentHistory:[];
+      if(!history.length){
+        phList.appendChild(div('font-size:12px;color:#8A8272;padding:2px 2px 12px;font-style:italic','No installments recorded yet — the single Payment Received amount above is being used.'));
+        return;
+      }
+      history.forEach(function(p,idx){
+        var card=el('div');card.className='card';card.style.marginBottom='10px';
+        if(APP.editingPaymentIdx===idx){
+          // ── Expanded edit view ──
+          var head=el('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+          head.appendChild(div('font-size:12px;font-weight:700;color:#8A8272','Payment #'+(idx+1)));
+          head.appendChild(btn('✓ Done','btn sm ob',function(){APP.editingPaymentIdx=null;rerenderConfirmTab();}));
+          card.appendChild(head);
+          card.appendChild(g2([
+            fld('Amount (Rs.)',inp(p.amount,function(v){p.amount=parseFloat(v)||0;renderPaymentSummary();},'number')),
+            fld('Date',paymentDateInp(p.date,function(v){p.date=v;}))
+          ],'pay-row'));
+          card.appendChild(g2([
+            fld('Payment Mode',sel(p.mode||'Cash',PH_MODE_OPTS,function(v){p.mode=v;})),
+            fld('Received By',inp(p.receivedBy,function(v){p.receivedBy=v;},'text','Staff / Cashier name'))
+          ]));
+          card.appendChild(fld('Receipt No. (optional)',inp(p.receiptNo,function(v){p.receiptNo=v;},'text','auto if left blank')));
+          var delBtn=btn('🗑️ Delete Payment','btn sm or',function(){
+            removePaymentEntry(b,idx);
+            APP.editingPaymentIdx=null;
+            rerenderConfirmTab();
+          });
+          delBtn.style.cssText='margin-top:4px';
+          card.appendChild(delBtn);
+        } else {
+          // ── Collapsed summary view ──
+          var row=el('div');row.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px';
+          var info=el('div');info.style.flex='1';
+          info.innerHTML='<div style="font-size:16px;font-weight:800;color:#1E8449">'+fmt(p.amount)+'</div>'
+            +'<div style="font-size:11.5px;color:#8A8272;margin-top:3px">'+(isoToDMY(p.date)||'No date')+' &bull; '+(p.mode||'Cash')+'</div>'
+            +(p.receivedBy?'<div style="font-size:11px;color:#8A8272;margin-top:2px">Received by: '+p.receivedBy+'</div>':'')
+            +(p.receiptNo?'<div style="font-size:11px;color:#8A8272;margin-top:2px">Receipt: '+p.receiptNo+'</div>':'');
+          row.appendChild(info);
+          var actions=el('div');actions.style.cssText='display:flex;gap:6px;flex-shrink:0';
+          var rctBtn=withTooltip(btn('🧾','btn sm og',function(){
+            openPrint(makeReceipt(b,idx),pdfFileName(b.guestName,'Receipt-Payment'+(idx+1))+'.pdf');
+          }),'Generate Receipt for this payment');
+          rctBtn.style.cssText='padding:8px 11px;min-height:auto';
+          var editBtn=btn('✏️','btn sm bm',function(){APP.editingPaymentIdx=idx;rerenderConfirmTab();});
+          editBtn.style.cssText='padding:8px 11px;min-height:auto';
+          var delBtn2=btn('🗑️','btn sm or',function(){removePaymentEntry(b,idx);rerenderConfirmTab();});
+          delBtn2.style.cssText='padding:8px 11px;min-height:auto';
+          actions.appendChild(rctBtn);actions.appendChild(editBtn);actions.appendChild(delBtn2);
+          row.appendChild(actions);
+          card.appendChild(row);
+        }
+        phList.appendChild(card);
+      });
+    }
+
+    renderPaymentSummary();
+    renderPaymentList();
+
+    frag.appendChild(btn('+ Add Payment','btn sm ob',function(){
+      var newIdx=addPaymentEntry(b);
+      APP.editingPaymentIdx=newIdx;
+      rerenderConfirmTab();
+    }));
+
     // Auto-generate voucher button
-    var vouchBox=el('div');vouchBox.style.cssText='background:#0F1117;border:1.5px solid #2ECC7144;border-radius:10px;padding:14px;margin-top:14px';
-    vouchBox.innerHTML='<div style="font-size:12px;font-weight:700;color:#2ECC71;margin-bottom:6px">🎫 Auto-Generate Voucher</div>'
-      +'<div style="font-size:11px;color:#8A8090;margin-bottom:10px">Booking confirm thata j voucher generate karo — driver, hotel ane guest ne share karo.</div>';
+    var vouchBox=el('div');vouchBox.style.cssText='background:#FBFAF7;border:1.5px solid #1E844944;border-radius:10px;padding:14px;margin-top:14px';
+    vouchBox.innerHTML='<div style="font-size:12px;font-weight:700;color:#1E8449;margin-bottom:6px">🎫 Auto-Generate Voucher</div>'
+      +'<div style="font-size:11px;color:#8A8272;margin-bottom:10px">Booking confirm thata j voucher generate karo — driver, hotel ane guest ne share karo.</div>';
     var vBtn=el('button');vBtn.className='btn gn';vBtn.textContent='🎫 Generate & Print Voucher';
     vBtn.addEventListener('click',function(){
       var orig=vBtn.textContent;vBtn.disabled=true;vBtn.textContent='⏳ Please wait...';
@@ -4996,11 +5610,11 @@ function buildTab(tab){
   }
   else if(tab==='docs'){
     frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:6px','Generate Documents'));
-    frag.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:14px','Tap → Print dialog → Save as PDF'));
+    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:14px','Tap → Print dialog → Save as PDF'));
     // Reduce scrolling: 2-column grid instead of one long stacked list — same buttons,
     // roughly half the vertical space.
     var dw=el('div');dw.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px';
-    function dlbl(txt){var d=el('div');d.style.cssText='grid-column:1/-1;font-size:11px;color:#8A8090;margin-bottom:-2px;margin-top:6px';d.textContent=txt;return d;}
+    function dlbl(txt){var d=el('div');d.style.cssText='grid-column:1/-1;font-size:11px;color:#8A8272;margin-bottom:-2px;margin-top:6px';d.textContent=txt;return d;}
     (function(bk){
       // Bug fix: these buttons used to open the document straight from the in-memory
       // object without saving — if the app closed before the sticky Save button was
@@ -5045,7 +5659,7 @@ function buildTab(tab){
     // Tour Package rows.
     var invLbl=el('div');invLbl.style.cssText='font-size:13px;font-weight:700;color:#D4A843;margin-top:20px;margin-bottom:4px';invLbl.textContent='🧾 Invoice Items (editable)';
     frag.appendChild(invLbl);
-    frag.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Description, Qty ane Rate manually edit / add / delete kari shakay chhe. Khali rakho to auto Tour-Package rate vapraashe.'));
+    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:10px','Description, Qty ane Rate manually edit / add / delete kari shakay chhe. Khali rakho to auto Tour-Package rate vapraashe.'));
     var itemsWrap=el('div');
     function renderItems(){
       itemsWrap.innerHTML='';
