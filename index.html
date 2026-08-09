@@ -216,6 +216,24 @@ input,select,button{font-family:inherit}
 .gs-hint{color:#8A8090;font-size:12.5px;text-align:center;padding:44px 20px;line-height:1.6}
 .gs-mark{background:rgba(212,168,67,0.35);color:#F0C869;border-radius:3px;padding:0 2px}
 
+/* ── Global Hotel Search (new, independent of the booking search above) ──
+   Available on every viewport width (desktop + mobile) and from every tab,
+   since #hotelSearchBtn lives in #hdr, part of the static app shell that's
+   always on screen. Purely a read-only display over APP.hotels/APP.hotelRates
+   — no write path, so it cannot touch Hotel Rate Master or Booking data. ── */
+#hotelSearchOverlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,11,16,0.98);flex-direction:column}
+#hotelSearchOverlay.show{display:flex}
+#hotelSearchOverlay .hs-head{display:flex;align-items:center;gap:8px;padding:14px 14px 10px;flex-shrink:0}
+#hotelSearchOverlay .hs-head .inp{flex:1}
+#hotelSearchOverlay .hs-close{background:none;border:none;color:#8A8090;font-size:22px;line-height:1;cursor:pointer;padding:4px 10px}
+#hotelSearchResults{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 14px 24px;max-width:640px;width:100%;margin:0 auto}
+.hs-hint{color:#8A8090;font-size:12.5px;text-align:center;padding:44px 20px;line-height:1.6}
+.hs-card{background:#1A1D27;border:1px solid rgba(212,168,67,.16);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.hs-name{font-weight:800;font-size:14px;color:#F3D68A}
+.hs-meta{font-size:11px;color:#8A8090;margin-top:2px}
+.hs-contact{font-size:12px;color:#D8D2E0;margin-top:8px;display:flex;gap:16px;flex-wrap:wrap}
+.hs-tag{display:inline-block;font-size:10px;color:#8FD19E;background:rgba(46,204,113,.14);border-radius:6px;padding:2px 7px;margin-top:8px}
+
 /* ── Mobile Hotels Tab — Dynamic Card-Based Layout ──
    Desktop keeps the existing wide table (.hotel-desktop-tblwrap) and the
    combined voucher/confirmation <details> (.hotel-desktop-vdetails) exactly
@@ -244,6 +262,36 @@ input,select,button{font-family:inherit}
 .hcard-m-rates summary,.hcard-m-voucher summary{font-size:11px;color:#8A8090;cursor:pointer;padding:6px 0}
 .hcard-m-del{width:100%;margin-top:4px;background:transparent;border:1px solid #E74C3C55;color:#E74C3C;font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
 .hcard-m-del:active{background:#E74C3C22}
+
+/* ══════════════════════════════════════════════════════════════
+   V2.2 UI TRIAL — Hotels Tab Fast-Entry Compact Layout
+   Scope: Hotels tab mobile card list ONLY (everything below is
+   nested under .hotel-mobile-cards, the existing Hotels-tab-only
+   wrapper — see the block above). Purely additive CSS overrides;
+   no existing rule anywhere else in the stylesheet is edited, so
+   every other tab (Guest/Package/Vehicle/Payment/Documents/etc.)
+   and the Hotels tab's own desktop table (.hotel-desktop-tblwrap,
+   untouched, already compact) are completely unaffected.
+
+   What changes: margin/padding/gap only (label-to-input gap,
+   gap between consecutive fields, gap between consecutive hotel
+   cards). Input height (.inp/.sel min-height:46px), font sizes,
+   colors, dropdown/<select> behavior, field order, and all touch
+   targets (buttons, <details> summary tap areas) are NOT touched.
+
+   Rollback: delete this CSS block only (through the closing
+   comment marker below) — nothing else needs to change.
+   ══════════════════════════════════════════════════════════════ */
+.hotel-mobile-cards .fld{margin-bottom:8px}
+.hotel-mobile-cards .lbl{margin-bottom:3px}
+.hotel-mobile-cards .g2{gap:8px}
+.hotel-mobile-cards .hcard-m{margin-bottom:8px}
+.hotel-mobile-cards .hcard-m-head{padding:8px 10px}
+.hotel-mobile-cards .hcard-m-body{padding:10px}
+.hotel-mobile-cards .hcard-m-hotelname{margin-bottom:6px}
+.hotel-mobile-cards .hcard-m-roomcat{margin-bottom:6px}
+.hotel-mobile-cards .hcard-m-nights{margin-bottom:6px}
+/* ── END V2.2 UI TRIAL block ── */
 
 /* ── Glass-look cards (no backdrop-filter — see perf note below) ── */
 .card{
@@ -390,6 +438,241 @@ details summary::-webkit-details-marker{color:#D4A843}
   border-color:#C99A3E;
   box-shadow:0 0 0 3px rgba(201,154,62,0.18);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   V2.2 UI TRIAL — Active Field Focus Highlight (Booking Form only)
+   Scope: #content.form-open — the exact class go() adds only when
+   page==='form' (see "DATA-ENTRY WORKSPACE REDESIGN" scope note
+   above). Every other page/tab is unaffected.
+
+   Purely additive — does NOT edit the existing
+   "#content.form-open .inp:focus, #content.form-open .sel:focus"
+   rule directly above; this new rule layers background + a
+   slightly darker border on top, reusing colors already in this
+   theme (#B8892F is the same darker-gold already used for this
+   palette's primary button gradient, so it stays consistent
+   rather than introducing a new color).
+
+   :focus-within (not :focus) is used so the highlight also covers
+   the compound date-field widget (dateInp()): a plain
+   <div class="inp"> wrapper around the real focusable
+   <input type="text"> — :focus alone can never match a <div>, but
+   :focus-within matches the element itself OR a focused descendant,
+   so one rule covers plain .inp/.sel fields AND the date wrapper,
+   with no JS required.
+
+   [readonly] fields are explicitly excluded. [disabled] fields are
+   already excluded automatically — disabled controls cannot receive
+   browser focus, so :focus-within can never match them.
+
+   transition is declared ONLY inside this rule, not on the base
+   .inp/.sel rule above — this is what makes focusing IN animate
+   over 180ms while focusing OUT (blur) restores instantly: a CSS
+   property change animates using the transition declared on the
+   state being transitioned TO, so blurring back to the base rule
+   (which declares no transition) is instant with no extra CSS
+   needed for requirement "restore immediately on blur".
+
+   Input height, font size, placeholder color, button colors,
+   labels, and dropdown/<select> behavior are all untouched.
+   Rollback: delete this block only.
+   ══════════════════════════════════════════════════════════════ */
+#content.form-open .inp:not([readonly]):focus-within,
+#content.form-open .sel:not([readonly]):focus-within{
+  background:#FFF9C4;
+  border-color:#B8892F;
+  transition:background-color 180ms ease,border-color 180ms ease,box-shadow 180ms ease;
+}
+/* ── END V2.2 UI TRIAL block (Active Field Focus Highlight) ── */
+
+/* ══════════════════════════════════════════════════════════════
+   V2.2 UI TRIAL — Desktop Fast Entry (Phase 1 + Phase 2, merged)
+   Scope: Desktop only, Booking Form only (#content.form-open, same
+   hook used by every other trial above). Two breakpoints:
+     - min-width:769px  → general fast-entry sizing/spacing/highlight
+     - min-width:1100px → the 2-column sticky Cost Summary grid (kept
+       at a higher width so a mid-size desktop window never gets a
+       cramped sidebar; below 1100px it gracefully falls back to the
+       normal stacked layout — same as it is today)
+   Mobile (<769px) matches NONE of this — 100% unchanged, verified
+   by diff below. Nothing here changes field order, removes a field,
+   or renames anything — CSS cannot restructure the DOM, and the one
+   JS line added (panel.className='opt-panel-grid', see buildOptPanel
+   above) is a plain string with no logic in it.
+
+   !important is used in a few rules below ONLY where it's needed to
+   beat an existing INLINE style that tdWrap()/the Cost-Summary HTML
+   string already sets from JS (e.g. tdWrap() sets elm.style.fontSize
+   ='11px' directly) — a plain class rule can never win against an
+   inline style otherwise. Every such case is commented individually.
+   Rollback: delete this whole block (through its end marker) plus
+   the single .opt-panel-grid line in buildOptPanel().
+   ══════════════════════════════════════════════════════════════ */
+@media(min-width:769px){
+  /* B1 — widen the Booking Form's working area on desktop so the wide
+     Hotels table (and, at ≥1100px, the sticky sidebar) has room. Only
+     the Booking Form is affected — the base #content{max-width:960px}
+     rule (used by Dashboard/List/etc.) is untouched. */
+  #content.form-open{max-width:1320px}
+
+  /* A6 — slightly larger desktop text across the Booking Form. */
+  #content.form-open .inp,
+  #content.form-open .sel{font-size:15.5px}
+  #content.form-open .lbl{font-size:12px}
+
+  /* A8 / B5 — a bit more breathing room between fields and between
+     major sections (Hotels / Markup & Service Charges / etc.). */
+  #content.form-open .fld{margin-bottom:16px}
+  #content.form-open .sect{margin:22px 0 12px}
+
+  /* A2 — highlight the whole row while any field in it is focused
+     (works alongside the existing per-field highlight above). */
+  #content.form-open .hotel-desktop-tblwrap tbody tr:focus-within{background:#FFFDE7}
+
+  /* A3 — larger Hotel Name field. Targeted via its existing
+     list="hotelDirList" attribute (already set in JS for the
+     Hotel-Directory autosuggest) — no new class/JS needed.
+     !important: overrides tdWrap()'s inline font-size/padding. */
+  #content.form-open .hotel-desktop-tblwrap input[list="hotelDirList"]{
+    min-width:170px!important;font-size:12.5px!important;padding:8px 9px!important;
+  }
+  /* A4 — larger Room Category field, same technique via list="roomCatList". */
+  #content.form-open .hotel-desktop-tblwrap input[list="roomCatList"]{
+    min-width:130px!important;font-size:12.5px!important;padding:8px 9px!important;
+  }
+  /* A5 — larger Meal Plan dropdown. It's the 8th column in every row
+     (#, Place, Hotel Name, Room Cat., Check-In, Check-Out, Rooms,
+     Meal — matches headCols exactly), so :nth-child(8) is a stable,
+     JS-free hook as long as column order doesn't change (per the
+     "do not change field order" rule, guaranteed here). */
+  #content.form-open .hotel-desktop-tblwrap tbody tr td:nth-child(8) .sel{
+    min-width:110px!important;font-size:12.5px!important;padding:8px 9px!important;
+  }
+
+  /* A7 — slightly taller rows across the desktop Hotels table.
+     !important: overrides tdWrap()'s inline td/th padding. */
+  #content.form-open .hotel-desktop-tblwrap td,
+  #content.form-open .hotel-desktop-tblwrap th{padding:8px 7px!important}
+
+  /* B3 — cleaner vertical alignment across all table cells. */
+  #content.form-open .hotel-desktop-tblwrap td{vertical-align:middle}
+
+  /* B6 — a touch more polish on the table's own container. */
+  #content.form-open .hotel-desktop-tblwrap{box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+
+  /* B4 — improve Cost Breakdown readability: slightly larger row text
+     and a little extra row padding inside the Cost Summary box.
+     !important: the breakdown rows are built as an inline-styled HTML
+     string in refreshSummary() — this only affects paint, not markup,
+     logic, or the figures themselves (calcOpt is not touched). */
+  #content.form-open #costSummaryBox > div:nth-child(2) span{font-size:12.5px!important}
+  #content.form-open #costSummaryBox > div:nth-child(2) > div{padding:9px 13px!important}
+  #content.form-open #costSummaryBox{box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+}
+
+@media(min-width:1100px){
+  /* B2 — Sticky Cost Summary panel on the right. .opt-panel-grid turns
+     the existing single-column panel into a 2-column grid; grid item
+     placement (grid-column) is independent of DOM/source order, so
+     every field/section stays in exactly the order it's written in
+     the markup — only where it's painted on screen changes. */
+  #content.form-open .opt-panel-grid{
+    display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start;
+  }
+  /* Every panel child defaults to column 1 (i.e. the normal top-to-
+     bottom stack — Hotels table, Vehicle Details, Markup section —
+     looks exactly as before, just narrower to make room for column 2). */
+  #content.form-open .opt-panel-grid > *{grid-column:1}
+  /* #costSummaryBox is the one exception: pulled into column 2,
+     spanning every row, and pinned while the left column scrolls. */
+  #content.form-open .opt-panel-grid #costSummaryBox{
+    grid-column:2;grid-row:1/-1;position:sticky;top:16px;align-self:start;
+  }
+}
+/* ── END V2.2 UI TRIAL block (Desktop Fast Entry) ── */
+
+/* ══════════════════════════════════════════════════════════════
+   V2.2 UI TRIAL — Smart Dropdown UX Enhancement
+   Scope: Booking Form only (#content.form-open), no media-query
+   gate — applies on desktop AND mobile alike (requirement 9).
+
+   Covers, via two general selectors rather than per-field rules
+   (so requirement 8, "any booking-entry dropdown used frequently",
+   is automatically included too):
+     #content.form-open .sel        → every native <select> (Meal
+                                        Plan, Status, Priority, Lost
+                                        Reason, and any other .sel)
+     #content.form-open input[list] → every datalist-backed field
+                                        (Hotel Name, Room Category,
+                                        Vehicle Type, Guest Name)
+
+   IMPORTANT, DISCLOSED LIMITATION (read before assuming full
+   compliance — see delivery report for the full explanation):
+   the OPEN popup for both control types is rendered natively by the
+   OS/browser. For input[list] (datalist), the suggestion popup has
+   ZERO CSS surface in any browser — nothing below can touch it;
+   only the closed input box is reachable. For <select>, the closed
+   box is fully stylable (below), but inside the open popup: hover-
+   highlight color can NOT be styled in ANY browser (native-only, no
+   CSS hook exists), and "selected option" highlighting only works,
+   inconsistently, in Chromium (Chrome/Edge) — Firefox/Safari ignore
+   it and show their own native styling. The two option-level rules
+   below are included as Chromium best-effort and are a harmless
+   no-op elsewhere.
+
+   Nothing here touches business logic, IDs, event handlers, field
+   names, or data binding — sel()/tdWrap() and every setter/change
+   handler are completely untouched.
+   Rollback: delete this block only.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Req 1/3/4 — wider, better-padded, slightly larger-text closed box
+   for every native <select>. (Where a more specific rule already
+   exists — e.g. the compact desktop Hotels table's Meal Plan column
+   from the earlier Desktop Fast Entry trial — that rule's higher
+   selector specificity still wins here, by design; no regression.) */
+#content.form-open .sel{
+  padding:13px 16px;
+  font-size:15.5px;
+  min-height:48px;
+}
+
+/* Req 1/3/4 — same closed-box treatment for datalist-backed fields
+   (Hotel Name, Room Category, Vehicle Type, Guest Name). */
+#content.form-open input[list]{
+  padding:13px 16px;
+  font-size:15.5px;
+  min-height:48px;
+}
+
+/* Req 7 — long selected text is never silently clipped without an
+   ellipsis in the closed box (most browsers already do this
+   natively; this makes it explicit/guaranteed). */
+#content.form-open .sel,
+#content.form-open input[list]{
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  overflow:hidden;
+}
+
+/* Req 6 — best-effort "selected option" highlight (Chromium only —
+   see disclosure above). Uses the same light-blue used elsewhere for
+   a professional look, distinct from the yellow focus highlight. */
+#content.form-open .sel option:checked{
+  background:#E3F2FD;
+  color:#0B3D91;
+  font-weight:600;
+}
+
+/* Req 2/3/4 — best-effort open-popup row height/padding/font-size
+   (Chromium only — see disclosure above; no effect in Firefox/Safari,
+   which is not a bug in this CSS, it's how those browsers work). */
+#content.form-open .sel option{
+  padding:10px 14px;
+  font-size:14.5px;
+}
+/* ── END V2.2 UI TRIAL block (Smart Dropdown UX) ── */
+
 #content.form-open .inp::placeholder{color:#ADA795}
 #content.form-open .lbl{color:#8A8272}
 #content.form-open .sect{color:#9A8F78;border-bottom:1px solid #E7E3D8}
@@ -498,6 +781,7 @@ details summary::-webkit-details-marker{color:#D4A843}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn sm" id="globalSearchBtn" title="Search bookings">🔍</button>
+      <button class="btn sm" id="hotelSearchBtn" title="Search Hotels">🏨</button>
       <button class="btn sm og" id="syncBtn" style="display:none">⟳ Sync</button>
       <button class="btn sm" id="installBtn" style="display:none;background:linear-gradient(135deg,#BB79D6,#9B59B6);color:#fff;border-color:transparent" onclick="installApp()">📲 Install</button>
       <button class="btn sm" id="mAuthAcctBtn" title="Account">🔒</button>
@@ -540,6 +824,13 @@ details summary::-webkit-details-marker{color:#D4A843}
       <button class="gs-close" id="globalSearchClose" title="Close">✕</button>
     </div>
     <div id="globalSearchResults"></div>
+  </div>
+  <div id="hotelSearchOverlay">
+    <div class="hs-head">
+      <input class="inp" id="hotelSearchInput" type="text" placeholder="🔍 Search hotel name, city, contact, email...">
+      <button class="hs-close" id="hotelSearchClose" title="Close">✕</button>
+    </div>
+    <div id="hotelSearchResults"></div>
   </div>
 </div>
 <script>
@@ -1431,16 +1722,33 @@ function docLogoHtml(heightPx,badge){
 //  document generator (Quotation, Multi-Quotation, Voucher, Invoice,
 //  Receipt) so the official mobile numbers / email live in ONE place
 //  instead of being duplicated across documents. To update the contact
-//  details for every document at once, edit ONLY the three constants below.
+//  details for every document at once, edit ONLY the constants below.
 // ════════════════════════════════════════════════════════════
 var MISHRI_MOBILE_1='+91 99981 47184';
 var MISHRI_MOBILE_2='+91 79909 17434';
 var MISHRI_EMAIL='mishriholidays@gmail.com';
+// V2.2: official postal address, added as its own shared constant/array
+// (one line per printed line) so it lives in exactly ONE place — same
+// pattern as the mobile/email constants above. No document hardcodes
+// this text itself; every document reads it via docAddressHtml() below
+// (called directly by docContactHtml(), and by makeVouch()'s header,
+// which has its own layout and doesn't call docContactHtml()).
+var MISHRI_ADDRESS_LINES=['E/103, Rosewood Residency','Near Bansal Mall, Gotri','Vadodara \u2013 390021','Gujarat, India'];
+
+// Returns the shared postal-address markup, one line per array entry
+// above, joined with <br> so it renders as proper multi-line address
+// text (requirement: "keep proper line spacing") using whatever
+// font-family/size/colour the caller's wrapping container already sets
+// — same convention docContactHtml() below already follows.
+function docAddressHtml(){
+  return MISHRI_ADDRESS_LINES.join('<br>');
+}
 
 // Returns the shared contact markup: both mobile numbers on a single line
 // with a phone icon, followed by the email on its own line with an email
-// icon. Each number is wrapped in white-space:nowrap so it can never break
-// awkwardly across two lines (e.g. "99981" / "47184" splitting apart).
+// icon, followed by the postal address on its own lines. Each number is
+// wrapped in white-space:nowrap so it can never break awkwardly across two
+// lines (e.g. "99981" / "47184" splitting apart).
 // Callers wrap this in their own existing container (div/class) so each
 // document keeps its own font-size/colour/positioning exactly as before —
 // this helper only supplies the inner contact content.
@@ -1449,7 +1757,13 @@ function docContactHtml(){
     +'&nbsp;/&nbsp;'
     +'<span style="white-space:nowrap">'+MISHRI_MOBILE_2+'</span>'
     +'<br>'
-    +'<span style="white-space:nowrap">&#9993;&nbsp;'+MISHRI_EMAIL+'</span>';
+    +'<span style="white-space:nowrap">&#9993;&nbsp;'+MISHRI_EMAIL+'</span>'
+    // V2.2: address, directly below the existing contact details, in the
+    // same wrapping container so it automatically inherits the exact same
+    // font-family/size/colour already used for the lines above — no new
+    // styling introduced here.
+    +'<br>'
+    +'<span style="display:inline-block;margin-top:2px">'+docAddressHtml()+'</span>';
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1478,14 +1792,27 @@ function pickupDropStr(b){
 }
 // Shared Vehicle Details table (Type, Cab No., Pick Up, Drop) for the Quotation docs —
 // same info the Voucher already shows, so guests see it before confirming too.
-function vehTableHtml(vehs){
+// BUG FIX (V2.1): previously this always appended a hardcoded line ("650 kms
+// included in package; any usage beyond to be paid directly to driver") after
+// the table, regardless of what the user had or hadn't entered.
+// FEATURE (V2.1, added on request right after the bug fix above): a real
+// "Vehicle Remarks" field now exists (b.vehicleRemarks — Vehicle tab, below
+// the vehicle cards). remarksText is that value, passed in by the caller.
+// If it's blank/null/undefined, nothing is printed (same as the bug-fix
+// behavior). If it has text, ONLY that exact user-entered text is printed —
+// no default is ever injected, however this is called.
+function vehTableHtml(vehs, remarksText){
   if(!vehs||!vehs.length) return '';
   var rows=vehs.map(function(v){
     return '<tr><td class="nowrap">'+(v.type||'—')+'</td><td class="nowrap">'+(v.vehicleNo||'—')+'</td><td>'+(v.from||'—')+'</td><td>'+(v.to||'—')+'</td></tr>';
   }).join('');
+  var remarksHtml='';
+  if(remarksText && String(remarksText).trim()){
+    remarksHtml='<div style="font-size:9.5px;color:#666;margin-bottom:6px">'+String(remarksText).trim()+'</div>';
+  }
   return '<div class="section-title">VEHICLE DETAILS</div>'
     +'<table style="margin-bottom:8px"><tr><th>Vehicle Type</th><th>Cab No.</th><th>Pick Up</th><th>Drop</th></tr>'+rows+'</table>'
-    +'<div style="font-size:9.5px;color:#666;margin-bottom:6px">650 kms included in package; any usage beyond to be paid directly to driver</div>';
+    +remarksHtml;
 }
 
 // Premium sales-copy sections (content only) — shared by makeQuot (single option)
@@ -1713,7 +2040,7 @@ function makeQuot(b,on){
     +'</div>'
 
     // Vehicle details
-    +vehTableHtml(vehs)
+    +vehTableHtml(vehs, b.vehicleRemarks)
 
     // Hotel & Accommodation
     +(hotelRows?
@@ -1922,7 +2249,7 @@ function makeMultiQuot(b, options){
     +'<div class="info-label">Quotation No.</div><div class="info-value">'+b.quotNo+'</div>'
     +'<div class="info-label">Issue Date</div><div class="info-value">'+dateStr+'</div>'
     +'</div>'
-    +vehTableHtml(vehsAll)
+    +vehTableHtml(vehsAll, b.vehicleRemarks)
     +'<div class="section-title">HOTEL OPTIONS</div>'
     +(combinedHotelRows?'<table style="margin-bottom:14px"><tr><th style="text-align:center">Option</th><th>Destination</th><th>Hotel &amp; Room Category</th><th style="text-align:center">Check-In</th><th style="text-align:center">Check-Out</th><th style="text-align:center">Rooms</th><th style="text-align:center">Ex. Mattress</th><th style="text-align:center">Meal Plan</th></tr>'+combinedHotelRows+'</table>':'')
     +quotHotelAvailabilityNote()
@@ -1946,6 +2273,76 @@ function makeMultiQuot(b, options){
     +'<div style="font-size:11px;font-weight:700;color:#D4A843;font-style:italic">We look forward to making your holiday a memorable one!</div>'
     +'<div style="font-size:9px;color:#888;font-style:italic">Your Trusted Travel Partner</div></div>'
     +'</div></body></html>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  V2.4 TRIAL — DMC QUOTATION (COPY/PASTE) — NEW, ISOLATED FUNCTION
+//  Approved scope: wraps a manually pasted/edited DMC quotation with
+//  Mishri Holidays branding only. Does NOT parse, interpret, extract,
+//  or map anything from the pasted text — it is reproduced exactly as
+//  entered (line breaks and spacing preserved via white-space:pre-wrap).
+//  Reuses the EXISTING shared branding helpers only (docLogoHtml,
+//  docContactHtml, docPolishCss) — does not call calcOpt(), does not
+//  touch makeQuot()/makeMultiQuot(), does not read Hotel Rate Master,
+//  Payment, Revision, or Sync data in any way.
+// ════════════════════════════════════════════════════════════
+function makeDmcQuot(b,rawText){
+  var dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Quotation')+'</title>'
+    +'<meta name="color-scheme" content="only light">'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +'<style>'
+    +':root{color-scheme:only light}'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'html{background:#fff}'
+    +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
+    +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm}'
+    +'.logo-bar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px}'
+    +'.tagline{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:11px;color:#999}'
+    +'.divider-gold{border:none;border-top:2.5px solid #D4A843;margin:6px 0 14px}'
+    +'.title-block{text-align:center;margin-bottom:14px}'
+    +'.main-title{font-family:"Playfair Display",Georgia,serif;font-size:22px;font-weight:900;color:#1a1d27;letter-spacing:1px}'
+    +'.sub-title{font-family:"Poppins",sans-serif;font-size:10.5px;color:#B8892F;font-weight:600;margin-top:4px}'
+    // Pasted content: plain, readable block. pre-wrap preserves the user's
+    // exact line breaks/spacing (requirement 9) while still wrapping long
+    // lines so nothing runs off the printed page.
+    +'.dmc-content{white-space:pre-wrap;word-wrap:break-word;font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:11px;color:#1a1d27;line-height:1.7;border:1px solid #eee;border-radius:6px;padding:14px 16px;background:#fff}'
+    +'.footer{border-top:2.5px solid #D4A843;margin-top:18px;padding-top:10px;display:flex;justify-content:space-between;align-items:center}'
+    +'.footer-contact{font-size:9.5px;color:#666}'
+    +'@media print{.page{padding:6mm 10mm}}'
+    +docPolishCss()+'</style></head><body><div class="page">'
+
+    // Header — Mishri Holidays branding only (requirement 12/13). Reuses the
+    // exact same shared helper every other document already uses.
+    +'<div class="logo-bar">'
+    +'<div>'+docLogoHtml(46)+'</div>'
+    +'<div class="tagline">Your Trusted Travel Partner</div>'
+    +'</div>'
+    +'<hr class="divider-gold">'
+
+    +'<div class="title-block">'
+    +'<div class="main-title">'+( b.destination ? b.destination.toUpperCase() : 'HOLIDAY' )+' QUOTATION</div>'
+    +'<div class="sub-title">Guest: '+(b.guestName||'—')+' &bull; Quotation No. '+(b.quotNo||'—')+' &bull; '+dateStr+'</div>'
+    +'</div>'
+
+    // Pasted DMC content — reproduced exactly as entered, no parsing/mapping.
+    +'<div class="dmc-content">'+escHtmlPreserveLines(rawText)+'</div>'
+
+    // Footer — Mishri Holidays contact/address only (requirement 12/13).
+    +'<div class="footer"><div><div style="font-family:\'Playfair Display\',Georgia,serif;font-style:italic;font-size:13px;font-weight:700;color:#1a1d27">&#9992; Mishri Holidays</div><div class="footer-contact">'+docContactHtml()+'</div></div>'
+    +'<div style="font-size:9px;color:#888;font-style:italic">Your Trusted Travel Partner</div></div>'
+    +'</div></body></html>';
+}
+
+// Small isolated helper used only by makeDmcQuot() above — HTML-escapes the
+// pasted text (so any stray "<", ">", "&" from the DMC's message can't break
+// the generated document) while keeping every line break exactly where the
+// user put it. Does not touch, call, or interact with any existing escape
+// helper elsewhere in the file.
+function escHtmlPreserveLines(s){
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function makeVouch(b){
@@ -2057,6 +2454,7 @@ function makeVouch(b){
     +'.vhd-contact-row{display:flex;align-items:center;gap:8px;margin-top:7px;font-family:"Poppins",sans-serif;font-size:10px;color:#102A56;font-weight:600}'
     +'.vhd-contact-row .vhd-sep{color:#B9853D;font-weight:700}'
     +'.vhd-email-row{margin-top:3px;font-family:"Poppins",sans-serif;font-size:10px;color:#102A56;font-weight:600}'
+    +'.vhd-address-row{margin-top:3px;font-family:"Poppins",sans-serif;font-size:10px;color:#102A56;font-weight:600;line-height:1.5}'
     +'.vhd-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:9px}'
     +'.vhd-title{font-family:"Playfair Display",Georgia,serif;font-weight:900;font-size:32px;color:#102A56;letter-spacing:1.2px;line-height:1}'
     +'.vhd-badge{background:#1a1d27;color:#fff;padding:8px 16px;border-radius:4px;font-family:"Poppins",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:0.4px;text-transform:uppercase;text-align:center;line-height:1.5}'
@@ -2117,6 +2515,7 @@ function makeVouch(b){
     +'<div class="vhd-tagline">Your Journey. Our Responsibility.</div>'
     +'<div class="vhd-contact-row">&#9742;&nbsp;'+MISHRI_MOBILE_1+'<span class="vhd-sep">|</span>'+MISHRI_MOBILE_2+'</div>'
     +'<div class="vhd-email-row">&#9993;&nbsp;'+MISHRI_EMAIL+'</div>'
+    +'<div class="vhd-address-row">'+docAddressHtml()+'</div>'
     +'</div>'
     +'</div>'
     +'<div class="vhd-right">'
@@ -3378,7 +3777,15 @@ function normalizeBooking(b){
   if(b.lostReasonOther===undefined) b.lostReasonOther='';
   if(b.terms===undefined) b.terms=[];
   if(b.remarks===undefined) b.remarks='';
+  // Vehicle Remarks (added on request, replacing the old hardcoded quotation
+  // text — see vehTableHtml()). Self-heals old bookings with a blank default;
+  // never overwrites anything already saved.
+  if(b.vehicleRemarks===undefined) b.vehicleRemarks='';
   if(b.paymentPolicy===undefined) b.paymentPolicy='';
+  // V2.4 TRIAL — DMC Quotation (Paste). Self-heals old bookings with a blank
+  // default; never overwrites anything already saved. Same one-line pattern
+  // as every other field above — plain string, no parsing, no new model.
+  if(b.dmcQuoteRaw===undefined) b.dmcQuoteRaw='';
   if(b.packageTemplateId===undefined) b.packageTemplateId=null;
   if(b.packageTemplateName===undefined) b.packageTemplateName='';
   // Installment Payment History — Phase 1: initialize ONLY when missing.
@@ -4002,15 +4409,26 @@ function lastFin(){
 }
 function newBk(){
   var lf=lastFin();
+  // BUG FIX (V2.1): Markup % and Fixed Markup must ALWAYS start at 0 on a
+  // brand-new booking — never inherited from the last-saved booking's
+  // values. Previously both were pre-filled from lf.mkPct/lf.mkFixed (the
+  // "remember last used" speed optimization below), which is how a stray
+  // saved value (e.g. 3200) kept reappearing as the default Fixed Markup on
+  // every new booking. GST% and Misc/Other Charges are intentionally left
+  // as-is (still pre-filled from lf.misc/lf.gstPct) — that behavior was not
+  // reported as a bug and is unchanged. This only affects newBk(), used
+  // solely for the "+ New Booking" button; loading/editing an existing
+  // booking never calls this function, so previously saved bookings keep
+  // showing their own saved mkPct/mkFixed values exactly as before.
   return{
     quotNo:genQuotNo(),
     guestName:'',contact:'',email:'',destination:'',
     adults:2,children:0,compChildren:0,rooms:1,
     opt1:[emH()],opt2:[emH()],opt3:[emH()],
-    vehicles:[emV()],
-    mkPct1:lf.mkPct,mkFixed1:lf.mkFixed,misc1:lf.misc,gstPct1:lf.gstPct,childVehPct1:0,
-    mkPct2:lf.mkPct,mkFixed2:lf.mkFixed,misc2:lf.misc,gstPct2:lf.gstPct,childVehPct2:0,
-    mkPct3:lf.mkPct,mkFixed3:lf.mkFixed,misc3:lf.misc,gstPct3:lf.gstPct,childVehPct3:0,
+    vehicles:[emV()],vehicleRemarks:'',
+    mkPct1:0,mkFixed1:0,misc1:lf.misc,gstPct1:lf.gstPct,childVehPct1:0,
+    mkPct2:0,mkFixed2:0,misc2:lf.misc,gstPct2:lf.gstPct,childVehPct2:0,
+    mkPct3:0,mkFixed3:0,misc3:lf.misc,gstPct3:lf.gstPct,childVehPct3:0,
     selectedOption:1,bookingRef:'',bookingDate:'',startDate:'',endDate:'',
     driverName:'',driverContact:'',hotelConfirmNo:'',
     itinerary:['','','','','','','','','',''],
@@ -5283,7 +5701,7 @@ function bForm(){
   top.appendChild(ttl);wrap.appendChild(top);
   var card=el('div');card.style.cssText='background:linear-gradient(160deg,rgba(32,35,48,0.72),rgba(22,24,34,0.65));backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-radius:14px;border:1px solid rgba(255,255,255,0.07);overflow:hidden;margin-bottom:12px;box-shadow:0 6px 20px rgba(0,0,0,.22)';
   var tb=el('div');tb.className='tabs';
-  var tabs=[{id:'guest',l:'👤 Guest'},{id:'package',l:'📦 Package'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'confirm',l:'✅ Confirm'}];
+  var tabs=[{id:'guest',l:'👤 Guest'},{id:'package',l:'📦 Package'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'dmc',l:'📝 DMC'},{id:'confirm',l:'✅ Confirm'}];
   var tbMap={};var tc=el('div');tc.style.padding='12px';
   // Faster navigation / less scrolling: a Prev/Next row at the bottom of each tab's
   // content lets the user move through Guest → Hotels → ... → Confirm with one tap,
@@ -5597,6 +6015,13 @@ function buildTab(tab){
 
     function buildOptPanel(od){
       var panel=el('div');
+      // V2.2 DESKTOP UI TRIAL: className only, for CSS scoping (see the
+      // desktop-only "@media(min-width:1100px) #content.form-open
+      // .opt-panel-grid" block in <style>). No behavior/logic added here —
+      // on mobile (<1100px) this class matches no rule, so mobile is
+      // 100% unchanged. This is the ONLY JavaScript line touched by the
+      // entire V2.2 Desktop UI trial.
+      panel.className='opt-panel-grid';
 
       // Summary strip — LIVE updating (Bug fix: previously built once from a
       // static c0 snapshot, so it never reflected edits made lower on the page).
@@ -6138,6 +6563,15 @@ function buildTab(tab){
       frag.appendChild(vc);
     });
     frag.appendChild(btn('+ Add Vehicle','btn sm ob',function(){addVehicleRow(b);var tc=frag.parentNode;if(tc){tc.innerHTML='';tc.appendChild(buildTab('vehicle'));}}));
+
+    // Vehicle Remarks — feeds vehTableHtml() in the Quotation/Multi-Quotation
+    // (see b.vehicleRemarks). Printed only if non-blank, exactly as typed —
+    // no default text is ever injected (this replaces the old hardcoded
+    // "650 kms included..." line that used to print unconditionally).
+    var vrWrap=el('div');vrWrap.style.marginTop='10px';
+    vrWrap.appendChild(fld('Vehicle Remarks (optional — printed on Quotation exactly as typed)',
+      mkTextarea(b.vehicleRemarks,function(val){b.vehicleRemarks=val;},'e.g. 650 kms included in package; any usage beyond to be paid directly to driver',3)));
+    frag.appendChild(vrWrap);
   }
   else if(tab==='confirm'){
     // Booking Ref No. = Quotation No. now (merged — see normalizeBooking()).
@@ -6475,6 +6909,43 @@ function buildTab(tab){
     }));
     itemBtnsRow.appendChild(btn('↺ Reset to Auto','btn sm bm',function(){b.invoiceItems=[];renderItems();}));
     frag.appendChild(itemBtnsRow);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  V2.4 TRIAL — DMC QUOTATION (COPY/PASTE) — now its own top-level
+  //  tab (moved out of Docs per approved request) for one-tap access.
+  //  Rendered inline exactly like every other tab (Guest/Package/...):
+  //  the textarea edits b.dmcQuoteRaw live, same as every other field
+  //  in this form, and is persisted whenever the existing sticky
+  //  💾 Save button is tapped — no separate/new save path. "Generate
+  //  PDF" follows the exact same save-then-print pattern as every
+  //  button in the Docs tab (see dbtn() above), reusing the SAME
+  //  saveBooking() and openPrint(). Still does not parse the pasted
+  //  text, still does not touch calcOpt(), Hotel Rate Master, Payment,
+  //  Revision, or Sync.
+  // ════════════════════════════════════════════════════════════
+  else if(tab==='dmc'){
+    frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:6px','📝 DMC Quotation — Paste & Edit'));
+    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:12px','Paste the complete DMC quotation below. Edit rates, amounts, dates, names or any text as needed — it is used exactly as typed, then tap Generate PDF.'));
+    var dmcTa=el('textarea');
+    dmcTa.style.cssText='width:100%;min-height:340px;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:12px;font-size:12.5px;font-family:inherit;line-height:1.6;resize:vertical;box-sizing:border-box';
+    dmcTa.value=b.dmcQuoteRaw||'';
+    dmcTa.placeholder='Paste the complete DMC quotation here...';
+    dmcTa.addEventListener('input',function(){ b.dmcQuoteRaw=dmcTa.value; });
+    frag.appendChild(dmcTa);
+    var dmcGenBtn=btn('📄 Generate PDF','btn bg',function(){
+      var orig=dmcGenBtn.textContent;
+      dmcGenBtn.disabled=true; dmcGenBtn.textContent='⏳ Please wait...';
+      withTimeout(saveBooking(b),15000,'Save').then(function(){
+        openPrint(makeDmcQuot(b,b.dmcQuoteRaw),pdfFileName(b.guestName,'Quotation')+'.pdf');
+        dmcGenBtn.disabled=false; dmcGenBtn.textContent=orig;
+      }).catch(function(err){
+        dmcGenBtn.disabled=false; dmcGenBtn.textContent=orig;
+        if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
+      });
+    });
+    dmcGenBtn.style.cssText+='width:100%;margin-top:12px';
+    frag.appendChild(dmcGenBtn);
   }
   return frag;
 }
@@ -7811,6 +8282,234 @@ function boot(){
 // successful login / valid session. mAuthResetIdleTimer() is also
 // started at this point (arms the 30-min inactivity auto-logout).
 mAuthGuard(function(){ mAuthResetIdleTimer(); boot(); });
+</script>
+
+<!-- ============================================================================
+     V2.3 STABLE — KEYBOARD FAST ENTRY MODE  (additive, desktop-only)
+     ----------------------------------------------------------------------------
+     Pure UX/productivity layer. Does not read from or write to the booking
+     model, does not call calcOpt()/Auto Fill/Hotel Rate Master/Payment/
+     Revision/Documents/Sync/LocalStorage, and does not add, remove, or
+     rename any field, id, or existing event handler. It only listens for the
+     ENTER/SHIFT+ENTER keys on fields that already exist and moves keyboard
+     focus to another field that already exists. See SKILL/testing notes
+     delivered alongside this file for the full regression checklist.
+     ============================================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // ---- Rule: Desktop only. Mobile behaviour must remain unchanged. ----------
+  // Matches the app's own existing 768px desktop/mobile breakpoint (see the
+  // @media(min-width:768px)/@media(max-width:768px) rules already in <style>).
+  function isDesktop(){
+    return window.innerWidth>768 &&
+      (!window.matchMedia || window.matchMedia('(hover:hover) and (pointer:fine)').matches);
+  }
+
+  // Fields eligible for fast-entry keyboard navigation. Explicitly excludes:
+  //  - checkboxes/radios/file/hidden/buttons (Enter has no meaningful "next
+  //    field" role there and native behaviour must stay untouched)
+  //  - input[type=date] — the app's dateInp()/paymentDateInp() helpers pair
+  //    a visible text input with a hidden (opacity:0) native date-picker
+  //    input for tap-to-pick support. Only the visible text input should be
+  //    part of the keyboard flow; the hidden picker input is intentionally
+  //    skipped here so Enter doesn't "jump" onto an invisible field. This
+  //    changes nothing about how that hidden input works — it's simply left
+  //    out of our own separate keyboard-flow list.
+  var FIELD_SELECTOR='input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+    +':not([type=file]):not([type=button]):not([type=submit]):not([type=date]), '
+    +'select, textarea';
+
+  function isEligible(node){
+    if(!node || node.nodeType!==1 || !node.matches) return false;
+    if(!node.matches(FIELD_SELECTOR)) return false;
+    if(node.disabled || node.readOnly) return false;
+    // offsetParent is null for display:none elements (itself or an ancestor,
+    // e.g. the mobile-only hotel cards / hidden Lost-Reason block / the
+    // desktop table on a narrow viewport) — a cheap, reliable "is this
+    // actually shown right now" check that needs no extra bookkeeping.
+    if(node.offsetParent===null) return false;
+    return true;
+  }
+
+  // Recomputed on every keypress (never cached) since #content is fully
+  // re-rendered on every tab/page switch and hotel/vehicle/payment rows can
+  // be added or removed at any time.
+  function navigableFields(container){
+    var all=container.querySelectorAll(FIELD_SELECTOR);
+    var out=[];
+    for(var i=0;i<all.length;i++){ if(isEligible(all[i])) out.push(all[i]); }
+    return out;
+  }
+
+  function focusAndSelect(f){
+    f.focus();
+    if(f.tagName==='INPUT' && /^(text|number|email|tel)$/.test(f.type)){
+      try{ f.select(); }catch(e){}
+    }
+  }
+
+  function goToField(container,current,dir){
+    var fields=navigableFields(container);   // fresh query — never cached
+    var idx=fields.indexOf(current);
+    if(idx===-1) return;
+    var next=fields[idx+dir];
+    if(next) focusAndSelect(next);
+  }
+
+  // ---- Single delegated listener on #content — attached exactly once. -----
+  // #content itself is never destroyed or recreated by the app (only its
+  // innerHTML is cleared/rebuilt on every tab/page switch — see
+  // renderTabContent()/sw()), so one listener here survives every re-render
+  // for free. No re-attachment, no MutationObserver, no polling needed.
+  // We deliberately do NOT keep any reference to the fields inside it —
+  // only this one stable parent-container reference, which is required for
+  // delegation and is re-queried for its children fresh on every keypress.
+  var contentEl=document.getElementById('content');
+  if(contentEl){
+    contentEl.addEventListener('keydown', function(e){
+      if(e.key!=='Enter') return;
+      if(!isDesktop()) return;                      // Rule: desktop only
+
+      var t=e.target;
+      if(!t || !t.matches) return;
+
+      // Rule 7: Textarea keeps its native "Enter = new line" behaviour, and
+      // is not part of the fast-entry navigation chain at all.
+      if(t.tagName==='TEXTAREA') return;
+
+      // Rule 6: hidden / disabled / readonly fields are skipped automatically
+      // (isEligible() re-checks offsetParent/disabled/readOnly live, every time).
+      if(!isEligible(t)) return;
+
+      var dir=e.shiftKey ? -1 : 1;                  // Rule 2: Shift+Enter = previous
+
+      // Fields with a datalist (Hotel Name, Room Category, Guest Name,
+      // Vehicle Type/No.) can show a native browser suggestion popup. We
+      // don't preventDefault for these so the browser's own
+      // Enter-selects-suggestion behaviour stays completely intact; we just
+      // queue our focus move for the next tick, after the browser has
+      // finished handling this Enter. contentEl is re-queried fresh inside
+      // goToField() when this timeout fires, same as the synchronous path.
+      if(t.hasAttribute('list')){
+        setTimeout(function(){ goToField(contentEl,t,dir); },0);
+        return;
+      }
+
+      // Everything else (plain text fields, number fields, the visible half
+      // of date fields, and dropdowns) — Rules 1,3,4,5,8,9,10,11: Enter
+      // behaves like Tab (Shift+Enter like Shift+Tab) and never triggers a
+      // submit. Arrow-key browsing of a focused <select>'s options is
+      // native browser behaviour and is completely untouched here.
+      e.preventDefault();
+      goToField(contentEl,t,dir);
+    }, true);
+  }
+})();
+</script>
+
+<!-- ============================================================================
+     GLOBAL HOTEL SEARCH — search hotels from any tab, without opening the
+     Hotels tab. Purely additive and read-only:
+       - Does not call saveHotels(), saveHotelRates(), importHotelRates(),
+         normalizeHotelRow(), or normalizeHotelRateRow() — no write path at all.
+       - Only reads APP.hotels / APP.hotelRates, which the existing app code
+         already loads and keeps up to date; this script never fetches,
+         mutates, or persists that data itself.
+       - Independent of the existing #globalSearchBtn/#globalSearchOverlay
+         (booking search) — that feature's HTML, CSS, and JS are untouched.
+     ============================================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  var overlay=document.getElementById('hotelSearchOverlay');
+  var input=document.getElementById('hotelSearchInput');
+  var results=document.getElementById('hotelSearchResults');
+  var openBtn=document.getElementById('hotelSearchBtn');
+  var closeBtn=document.getElementById('hotelSearchClose');
+  if(!overlay||!input||!results||!openBtn||!closeBtn) return;
+
+  function esc(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // Read-only lookup: does this hotel have any Hotel Rate Master entry?
+  // Mirrors the same name match findMatchingRate() already uses — does not
+  // call findMatchingRate() itself (that requires city/roomCategory/mealPlan
+  // too, which a directory-level search doesn't have), just a lighter,
+  // display-only existence check over the same in-memory list.
+  function hasRatesOnFile(hotelName){
+    var list=APP.hotelRates||[];
+    var hn=(hotelName||'').trim().toLowerCase();
+    if(!hn) return false;
+    for(var i=0;i<list.length;i++){
+      if((list[i].hotelName||'').trim().toLowerCase()===hn) return true;
+    }
+    return false;
+  }
+
+  function renderResults(query){
+    var list=APP.hotels||[];
+    var q=(query||'').trim().toLowerCase();
+    var filtered=!q ? list : list.filter(function(h){
+      return (h.name||'').toLowerCase().indexOf(q)>=0 ||
+             (h.place||'').toLowerCase().indexOf(q)>=0 ||
+             (h.cat||'').toLowerCase().indexOf(q)>=0 ||
+             (h.ph||'').toLowerCase().indexOf(q)>=0 ||
+             (h.em||'').toLowerCase().indexOf(q)>=0;
+    });
+
+    if(!list.length){
+      results.innerHTML='<div class="hs-hint">No hotels in the directory yet.<br>Add hotels from the Hotels tab, or import an Excel file there.</div>';
+      return;
+    }
+    if(!filtered.length){
+      results.innerHTML='<div class="hs-hint">No hotels match "'+esc(query)+'".</div>';
+      return;
+    }
+
+    results.innerHTML=filtered.map(function(h){
+      var metaParts=[];
+      if(h.place) metaParts.push(esc(h.place));
+      if(h.cat) metaParts.push(esc(h.cat));
+      if(h.stars) metaParts.push(h.stars+'★');
+      var meta=metaParts.join(' • ');
+      var contactParts=[];
+      if(h.ph) contactParts.push('<span>📞 '+esc(h.ph)+'</span>');
+      if(h.em) contactParts.push('<span>✉️ '+esc(h.em)+'</span>');
+      var contact=contactParts.length?'<div class="hs-contact">'+contactParts.join('')+'</div>':'';
+      var tag=hasRatesOnFile(h.name)?'<div class="hs-tag">💰 Rates on file</div>':'';
+      return '<div class="hs-card">'
+        +'<div class="hs-name">'+esc(h.name)+'</div>'
+        +(meta?'<div class="hs-meta">'+meta+'</div>':'')
+        +contact
+        +tag
+        +'</div>';
+    }).join('');
+  }
+
+  function openHotelSearch(){
+    overlay.classList.add('show');
+    input.value='';
+    renderResults('');
+    setTimeout(function(){ input.focus(); },0); // after the overlay is visible
+  }
+  function closeHotelSearch(){
+    overlay.classList.remove('show');
+  }
+
+  openBtn.addEventListener('click',openHotelSearch);
+  closeBtn.addEventListener('click',closeHotelSearch);
+  input.addEventListener('input',function(){ renderResults(input.value); });
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) closeHotelSearch(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && overlay.classList.contains('show')) closeHotelSearch();
+  });
+})();
 </script>
 </body>
 </html>
