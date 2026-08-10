@@ -7961,10 +7961,12 @@ function mAuthShowForgotEnterKey(onDone){
       '<div style="width:100%;max-width:340px;text-align:center">'
       +'<div style="font-size:40px;margin-bottom:6px">⚠️</div>'
       +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
-      +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.5">No Recovery Key is on file for this login, so password reset is not available here.</div>'
-      +'<button id="mAuthForgotBack" style="'+MAUTH_BTN_CSS+'">Back to Login</button>'
+      +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.5">No Recovery Key is on file for this login, so password reset via Recovery Key is not available.</div>'
+      +'<button id="mAuthNoKeyReset" style="'+MAUTH_BTN_CSS+'">Reset Login Password Instead</button>'
+      +'<div id="mAuthForgotBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
       +'</div>'
     );
+    document.getElementById('mAuthNoKeyReset').onclick=function(){ mAuthShowResetNoRecovery(onDone); };
     document.getElementById('mAuthForgotBack').onclick=function(){ mAuthShowLogin(null,onDone); };
     return;
   }
@@ -8030,13 +8032,61 @@ function mAuthShowForgotNewPassword(onDone){
       MAUTH.clearAttempts();
       MAUTH.clearSession();        // logout all existing sessions
       wrap.remove();
-      toast('Password reset. Please log in with your new password.',true);
-      mAuthShowLogin(null,onDone);
+      mAuthShowResetSuccess(onDone);
     });
   }
   btn.onclick=save;
   p2.onkeydown=function(e){if(e.key==='Enter')save();};
   p1.focus();
+}
+
+// NEW: dedicated "Password Reset Successful" confirmation screen, shown
+// after mAuthShowForgotNewPassword() saves a new password via the
+// Recovery Key flow. Purely a confirmation UI — displays no password,
+// no Recovery Key, and no hash of either. Replaces the previous
+// toast+immediate-redirect with an explicit screen and button, per the
+// approved V2.4 audit. Does not touch MAUTH.*, hashing, attempts, or
+// session logic — the actual reset already happened in the caller above.
+function mAuthShowResetSuccess(onDone){
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:340px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">✅</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Password Reset Successful</div>'
+    +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:22px;line-height:1.6">Your password has been changed. Please log in with your new password.</div>'
+    +'<button id="mAuthResetSuccessBtn" style="'+MAUTH_BTN_CSS+'">Return to Login</button>'
+    +'</div>'
+  );
+  document.getElementById('mAuthResetSuccessBtn').onclick=function(){
+    wrap.remove();
+    mAuthShowLogin(null,onDone);
+  };
+}
+
+// NEW: "No Recovery Key" login reset. Resets ONLY the login password —
+// booking/guest/payment data lives in IndexedDB plus separate 'mc_'-prefixed
+// localStorage keys (see the STORAGE comment near the top of this file) and
+// is completely untouched by this. It simply removes the single password
+// hash key so the app falls back to the exact same first-time-setup screen
+// (mAuthShowSetup) used for a brand-new install, which as usual generates
+// and displays a fresh Recovery Key to save. Does not modify MAUTH.*,
+// getHash/setHash, or any existing auth function.
+function mAuthShowResetNoRecovery(onDone){
+  var wrap=mAuthShell(
+    '<div style="width:100%;max-width:340px;text-align:center">'
+    +'<div style="font-size:40px;margin-bottom:6px">⚠️</div>'
+    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Reset Login Password</div>'
+    +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:8px;line-height:1.6">This resets only your <b>login password</b>. Your bookings, guests, and payment records are stored separately on this device and will <b>not</b> be affected.</div>'
+    +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.6">You will set a new password and get a new Recovery Key — please save it somewhere safe this time.</div>'
+    +'<button id="mAuthResetNoRecBtn" style="'+MAUTH_BTN_CSS+'">Yes, Reset Login Password</button>'
+    +'<div id="mAuthResetNoRecBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
+    +'</div>'
+  );
+  document.getElementById('mAuthResetNoRecBtn').onclick=function(){
+    try{ localStorage.removeItem('mishriAuth_hash_v1'); }catch(e){}
+    wrap.remove();
+    mAuthShowSetup(onDone);
+  };
+  document.getElementById('mAuthResetNoRecBack').onclick=function(){ mAuthShowLogin(null,onDone); };
 }
 
 function mAuthShowLogin(msg,onDone){
@@ -8052,11 +8102,13 @@ function mAuthShowLogin(msg,onDone){
     +mAuthPwField('mAuthPass','Password')
     +'<button id="mAuthLoginBtn" style="'+MAUTH_BTN_CSS+'">Unlock</button>'
     +'<div id="mAuthForgotLink" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Forgot Password?</div>'
+    +'<div id="mAuthNoRecLink" style="margin-top:8px;font-size:11.5px;color:#6B6474;cursor:pointer;text-decoration:underline">No Recovery Key? Reset Login</div>'
     +'</div>'
   );
   mAuthWireEyeToggles();
   var input=document.getElementById('mAuthPass'),btn=document.getElementById('mAuthLoginBtn');
   document.getElementById('mAuthForgotLink').onclick=function(){ mAuthShowForgotEnterKey(onDone); };
+  document.getElementById('mAuthNoRecLink').onclick=function(){ mAuthShowResetNoRecovery(onDone); };
   function attempt(){
     var pw=input.value; if(!pw) return;
     btn.disabled=true; btn.textContent='Checking...';
