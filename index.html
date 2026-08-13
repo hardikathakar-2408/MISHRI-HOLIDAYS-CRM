@@ -293,6 +293,86 @@ input,select,button{font-family:inherit}
 .hotel-mobile-cards .hcard-m-nights{margin-bottom:6px}
 /* ── END V2.2 UI TRIAL block ── */
 
+/* ══════════════════════════════════════════════════════════════
+   V2.7 UI TRIAL — Desktop Hotel Card Layout (approved mockup)
+   Scope: Hotels tab ONLY, desktop widths only (min-width:769px).
+   Reuses the EXISTING .hotel-mobile-cards DOM/JS verbatim — same
+   hotelsArr, same setHotelField()/addHotelRow()/removeHotelRow(),
+   same Auto Fill, same calcOpt(), same Hotel Rate Master. NOTHING
+   in JS is touched by this block; it only changes CSS display/
+   layout of cards that were already being built for mobile.
+
+   Breakpoints:
+     769–1099px → existing cards shown (in place of the desktop
+                  table), single column, just larger/roomier fields
+     1100px+    → 2 hotel cards side by side, AND Hotel Name / Room
+                  Category paired side-by-side within each card
+
+   Below 769px this entire block matches nothing — mobile is 100%
+   unchanged, verified by diff (see regression report).
+
+   Hotel Name / Room Category pairing uses their EXISTING classes
+   (.hcard-m-hotelname / .hcard-m-roomcat — already set in the JS
+   above for other styling) as the grid hook, not DOM order/nth-child
+   — so this stays correct even if unrelated fields are ever added
+   to the card later.
+
+   Rates & Extra Charges / Voucher & Confirmation Details keep their
+   existing <details> markup untouched — CSS simply forces the
+   content visible on desktop regardless of native open/closed
+   state. Mobile keeps its current collapsed-by-default behavior
+   exactly as before (this override only exists inside the
+   min-width:769px query).
+
+   Rollback: delete this block only — nothing else needs to change.
+   ══════════════════════════════════════════════════════════════ */
+@media(min-width:769px){
+  /* 1/2 — hide the desktop table + its voucher/confirmation <details>,
+     show the existing mobile card layout in its place. */
+  #content.form-open .hotel-desktop-tblwrap{display:none}
+  #content.form-open .hotel-desktop-vdetails{display:none}
+  #content.form-open .hotel-mobile-cards{display:block}
+
+  /* 4 — larger, fast-entry-friendly fields (same sizing approach as
+     the existing "V2.2 Desktop Fast Entry" trial elsewhere in this
+     file, applied here only to the hotel cards). */
+  #content.form-open .hotel-mobile-cards .inp,
+  #content.form-open .hotel-mobile-cards .sel{font-size:14.5px;padding:10px 12px}
+  #content.form-open .hotel-mobile-cards .hcard-m{margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+  #content.form-open .hotel-mobile-cards .hcard-m-body{padding:18px}
+  #content.form-open .hotel-mobile-cards .lbl{font-size:11.5px}
+
+  /* 6 — Rates & Extra Charges / Voucher & Confirmation Details open by
+     default on desktop. Forcing this reliably requires actually setting
+     the <details> `open` property (see the two width-gated JS lines
+     right after these elements are built, in the hotel-card loop above)
+     — tested directly and confirmed that overriding child display alone
+     does not expand the <details> element's own box correctly. This CSS
+     is cosmetic only: once genuinely open, style the summary like a
+     section heading instead of a small toggle link. Mobile (outside
+     this media query, and never receiving `open=true` in the first
+     place since the JS check is width-gated) is completely unaffected.
+     Desktop users can still click to manually collapse/reopen — nothing
+     here disables the native toggle. */
+  #content.form-open .hotel-mobile-cards .hcard-m-rates summary,
+  #content.form-open .hotel-mobile-cards .hcard-m-voucher summary{font-size:11.5px;font-weight:700;color:#D4A843;text-transform:uppercase;letter-spacing:.3px;margin-top:8px;padding:4px 0}
+}
+
+@media(min-width:1100px){
+  /* 3 — two hotel cards side by side. The "+ Add Hotel" button is a
+     sibling of .hotel-mobile-cards (appended after it, not inside),
+     so it is unaffected and stays full-width below the grid. */
+  #content.form-open .hotel-mobile-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  #content.form-open .hotel-mobile-cards .hcard-m{margin-bottom:0}
+
+  /* Hotel Name / Room Category side by side within each card. */
+  #content.form-open .hotel-mobile-cards .hcard-m-body{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  #content.form-open .hotel-mobile-cards .hcard-m-body > *{grid-column:1/-1}
+  #content.form-open .hotel-mobile-cards .hcard-m-body > .hcard-m-hotelname{grid-column:1}
+  #content.form-open .hotel-mobile-cards .hcard-m-body > .hcard-m-roomcat{grid-column:2}
+}
+/* ── END V2.7 UI TRIAL block (Desktop Hotel Card Layout) ── */
+
 /* ── Glass-look cards (no backdrop-filter — see perf note below) ── */
 .card{
   background:linear-gradient(160deg,rgba(38,41,56,0.88),rgba(24,26,37,0.92));
@@ -1873,6 +1953,23 @@ function quotCustomerTrust(){
     +'<div style="text-align:center;font-size:8.5px;color:#999;font-style:italic;border-top:1px dashed #ddd;padding-top:5px;margin-bottom:2px">"Customer Testimonial — Will be replaced with a verified customer review."</div>';
 }
 
+
+// V2.8 — Revision label for quotation PDFs. Reuses the EXISTING revision
+// system as-is: b.selectedRevision is already set by the existing "+ New
+// Revision" button / activateRevision() (see the Revisions data layer
+// above) — this function does not create any new counter, does not write
+// to b.revisions, and does not call addNewRevision()/activateRevision()/
+// ensureRevisions(). It only READS b.selectedRevision and returns a small
+// HTML badge — empty string for the original (0/undefined), "REV. N" for
+// any later revision. Shared by makeQuot(), makeMultiQuot(), and
+// makeDmcQuot() so all three always show the exact same number, since
+// they all read the same shared field.
+function revBadgeHtml(b){
+  var n=(b&&b.selectedRevision)?parseInt(b.selectedRevision,10):0;
+  if(!n||n<=0||isNaN(n)) return '';
+  return '<div style="display:inline-block;margin-top:6px;padding:3px 12px;border:1.5px solid #D4A843;border-radius:20px;font-family:\'Poppins\',Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:1px;color:#B8892F;background:#FBF3E0">REV. '+n+'</div>';
+}
+
 function makeQuot(b,on){
   var c=calcOpt(b,on),opt=b['opt'+on]||[];
   var hotels=opt.filter(function(h){return h.hotelName&&h.checkIn&&h.checkOut;});
@@ -2021,6 +2118,7 @@ function makeQuot(b,on){
     // Title
     +'<div class="title-block">'
     +'<div class="main-title">'+( b.destination ? b.destination.toUpperCase() : 'HOLIDAY' )+' QUOTATION</div>'
+    +revBadgeHtml(b)
     +(hotels.length>0?'<div class="sub-title">'+hotels.map(function(h){return h.place+(nts(h.checkIn,h.checkOut)>0?' ('+nts(h.checkIn,h.checkOut)+'N)':'');}).join(' &bull; ')+'</div>':'')
     +'</div>'
 
@@ -2097,6 +2195,19 @@ function makeQuot(b,on){
     +'<li>Cancellation charges apply as per policy of respective hotels and operators</li>'
     +'<li>This quotation is valid for 7 days from date of issue</li>'
     +'</ul></div>'
+
+    // V2.5 — Cancellation Policy: booking-level, optional. Only rendered
+    // when non-empty (req. 8/10) — no heading, no box, nothing at all
+    // otherwise. Pasted content is HTML-escaped (never interpreted as
+    // HTML/JS) via the SAME escHtmlPreserveLines() helper already used
+    // for the DMC Quotation paste feature — line breaks preserved via
+    // white-space:pre-wrap, matching how that feature already handles
+    // pasted text safely.
+    +(b.cancellationPolicy?(
+      '<div class="terms" style="margin-top:10px"><div class="terms-title">Cancellation Policy</div>'
+      +'<div style="white-space:pre-wrap;font-size:9.5px;color:#666;line-height:1.6;font-family:\'Poppins\',Arial,Helvetica,sans-serif">'+escHtmlPreserveLines(b.cancellationPolicy)+'</div></div>'
+    ):'')
+
     +quotCallToAction()
     +quotCustomerTrust()
 
@@ -2236,6 +2347,7 @@ function makeMultiQuot(b, options){
     +'<hr class="divider-gold">'
     +'<div style="text-align:center;margin-bottom:12px">'
     +'<div style="font-family:\'Playfair Display\',Georgia,serif;font-size:24px;font-weight:900;color:#1a1d27;letter-spacing:1.5px">'+(b.destination?b.destination.toUpperCase():'HOLIDAY')+' QUOTATION</div>'
+    +revBadgeHtml(b)
     +(allHotelsFlat.length>0?'<div style="font-size:11.5px;color:#B8892F;font-weight:600;margin-top:4px;letter-spacing:0.4px">'+allHotelsFlat.join(' &bull; ')+'</div>':'')
     +'</div>'
     +quotWelcomeMsg(b)
@@ -2267,6 +2379,16 @@ function makeMultiQuot(b, options){
     +quotNextSteps()
     +'<div class="terms"><b style="font-size:10px;color:#1a1d27">Terms &amp; Conditions</b>'
     +'<ul style="padding-left:14px;margin-top:6px"><li>Rates subject to availability and may change without prior notice</li><li>Booking advance required to confirm hotels and vehicle; balance as per company policy</li><li>AC in vehicle will not function on hilly/ghat sections or while stationary</li><li>Cancellation charges apply as per hotel and operator policy</li><li>This quotation is valid for 7 days from date of issue</li></ul></div>'
+
+    // V2.5 — Cancellation Policy: same conditional, booking-level, optional
+    // section as makeQuot() above. Only rendered when non-empty. Matches
+    // this function's own inline <b> heading style (no .terms-title class
+    // defined in this function's CSS block, unlike makeQuot()).
+    +(b.cancellationPolicy?(
+      '<div class="terms" style="margin-top:10px"><b style="font-size:10px;color:#1a1d27">Cancellation Policy</b>'
+      +'<div style="white-space:pre-wrap;font-size:9px;color:#666;line-height:1.6;margin-top:6px;font-family:\'Poppins\',Arial,Helvetica,sans-serif">'+escHtmlPreserveLines(b.cancellationPolicy)+'</div></div>'
+    ):'')
+
     +quotCallToAction()
     +quotCustomerTrust()
     +'<div class="footer"><div><div style="font-family:\'Playfair Display\',Georgia,serif;font-style:italic;font-size:13px;font-weight:700;color:#1a1d27">&#9992; Mishri Holidays</div><div style="font-size:9.5px;color:#666">'+docContactHtml()+'</div></div>'
@@ -2286,7 +2408,7 @@ function makeMultiQuot(b, options){
 //  touch makeQuot()/makeMultiQuot(), does not read Hotel Rate Master,
 //  Payment, Revision, or Sync data in any way.
 // ════════════════════════════════════════════════════════════
-function makeDmcQuot(b,rawText){
+function makeDmcQuot(b,rawText,htmlContent){
   var dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+pdfFileName(b.guestName,'Quotation')+'</title>'
     +'<meta name="color-scheme" content="only light">'
@@ -2308,9 +2430,19 @@ function makeDmcQuot(b,rawText){
     // exact line breaks/spacing (requirement 9) while still wrapping long
     // lines so nothing runs off the printed page.
     +'.dmc-content{white-space:pre-wrap;word-wrap:break-word;font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:11px;color:#1a1d27;line-height:1.7;border:1px solid #eee;border-radius:6px;padding:14px 16px;background:#fff}'
+    // V2.6 — table-friendly styling, used only when htmlContent (a pasted,
+    // sanitized DMC table) is present. When it IS present, .dmc-content's
+    // own white-space:pre-wrap is turned off below (inline, on that one
+    // div) so real table layout — not literal whitespace — controls
+    // spacing, exactly like a normal HTML table would render anywhere else.
+    +'.dmc-content table{width:100%;border-collapse:collapse;margin:6px 0 12px;font-size:9.5px}'
+    +'.dmc-content th,.dmc-content td{border:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top;word-break:break-word}'
+    +'.dmc-content th{background:#f5f5f5;font-weight:700;color:#1a1d27}'
+    +'.dmc-content tr:nth-child(even) td{background:#fafafa}'
+    +'.dmc-content p{margin:4px 0}'
     +'.footer{border-top:2.5px solid #D4A843;margin-top:18px;padding-top:10px;display:flex;justify-content:space-between;align-items:center}'
     +'.footer-contact{font-size:9.5px;color:#666}'
-    +'@media print{.page{padding:6mm 10mm}}'
+    +'@media print{.page{padding:6mm 10mm} .dmc-content table{page-break-inside:auto} .dmc-content tr{page-break-inside:avoid}}'
     +docPolishCss()+'</style></head><body><div class="page">'
 
     // Header — Mishri Holidays branding only (requirement 12/13). Reuses the
@@ -2323,11 +2455,19 @@ function makeDmcQuot(b,rawText){
 
     +'<div class="title-block">'
     +'<div class="main-title">'+( b.destination ? b.destination.toUpperCase() : 'HOLIDAY' )+' QUOTATION</div>'
+    +revBadgeHtml(b)
     +'<div class="sub-title">Guest: '+(b.guestName||'—')+' &bull; Quotation No. '+(b.quotNo||'—')+' &bull; '+dateStr+'</div>'
     +'</div>'
 
-    // Pasted DMC content — reproduced exactly as entered, no parsing/mapping.
-    +'<div class="dmc-content">'+escHtmlPreserveLines(rawText)+'</div>'
+    // V2.6 — DMC content: if a sanitized HTML table was captured on paste
+    // (htmlContent, already allowlist-sanitized by sanitizeDmcHtml() before
+    // ever reaching here — see that function), render it as real HTML so
+    // rows/columns/bold/line-breaks display as a table. Otherwise, fall
+    // back to the ORIGINAL, unchanged plain-text path — same escaping,
+    // same pre-wrap rendering, same as before this feature existed.
+    +(htmlContent
+      ? '<div class="dmc-content" style="white-space:normal">'+htmlContent+'</div>'
+      : '<div class="dmc-content">'+escHtmlPreserveLines(rawText)+'</div>')
 
     // Footer — Mishri Holidays contact/address only (requirement 12/13).
     +'<div class="footer"><div><div style="font-family:\'Playfair Display\',Georgia,serif;font-style:italic;font-size:13px;font-weight:700;color:#1a1d27">&#9992; Mishri Holidays</div><div class="footer-contact">'+docContactHtml()+'</div></div>'
@@ -2343,6 +2483,88 @@ function makeDmcQuot(b,rawText){
 function escHtmlPreserveLines(s){
   return String(s||'')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ════════════════════════════════════════════════════════════
+//  V2.6 — DMC TABLE PASTE: HTML sanitizer. Allowlist-only, no external
+//  library. Used exclusively by the DMC tab's paste handler, before
+//  anything reaches b.dmcQuoteHtml or the quotation PDF.
+//
+//  Security note on the parsing step: this deliberately uses DOMParser
+//  (which produces a fully inert document — no scripts execute, no
+//  images/external resources load, no event-handler attributes fire)
+//  INSTEAD OF `container.innerHTML = rawHtml`. Setting innerHTML with
+//  untrusted markup — even on an element never attached to the live
+//  document — can still trigger e.g. an <img onerror="..."> payload the
+//  instant the browser parses it, before any sanitization code runs.
+//  DOMParser avoids that entire class of bug by construction.
+// ════════════════════════════════════════════════════════════
+var DMC_ALLOWED_TAGS={
+  TABLE:1,THEAD:1,TBODY:1,TFOOT:1,TR:1,TH:1,TD:1,
+  P:1,BR:1,STRONG:1,B:1,EM:1,I:1,U:1,SPAN:1,DIV:1,UL:1,OL:1,LI:1
+};
+var DMC_ALLOWED_ATTRS={ TD:['colspan','rowspan'], TH:['colspan','rowspan'] };
+var DMC_SAFE_STYLE_PROPS=['font-weight','text-align','background-color','color'];
+
+function sanitizeDmcStyle(styleStr){
+  if(!styleStr) return '';
+  var out=[];
+  styleStr.split(';').forEach(function(rule){
+    var parts=rule.split(':');
+    if(parts.length!==2) return;
+    var prop=parts[0].trim().toLowerCase();
+    var val=parts[1].trim();
+    if(DMC_SAFE_STYLE_PROPS.indexOf(prop)===-1) return;
+    // Extra safety net even though these props shouldn't normally carry
+    // url()/expression() — block outright if they somehow do.
+    if(/url\s*\(|expression\s*\(|javascript:/i.test(val)) return;
+    out.push(prop+':'+val);
+  });
+  return out.join(';');
+}
+
+// Recursively rebuilds a sanitized copy of `node` into `out` (an element
+// in the MAIN document). Every new element is created fresh via
+// document.createElement() and only ever receives text nodes or further
+// sanitized children — innerHTML is never set on anything here with
+// unsanitized content, and tags that can load external content (img,
+// a/href, iframe, object, etc.) are simply never in the allowlist at all.
+function sanitizeDmcNode(node,out){
+  if(node.nodeType===3){ out.appendChild(document.createTextNode(node.nodeValue)); return; }
+  if(node.nodeType!==1) return; // drop comments and anything else
+  var tag=node.tagName;
+  if(tag==='SCRIPT'||tag==='STYLE'||tag==='IFRAME'||tag==='OBJECT'||tag==='EMBED'||tag==='LINK'||tag==='META'||tag==='IMG'||tag==='A'||tag==='FORM'||tag==='INPUT'||tag==='BUTTON'||tag==='SVG'){
+    return; // drop entirely, including children — never unwrapped
+  }
+  if(DMC_ALLOWED_TAGS[tag]){
+    var clean=document.createElement(tag);
+    (DMC_ALLOWED_ATTRS[tag]||[]).forEach(function(a){
+      if(node.hasAttribute(a)){
+        var v=node.getAttribute(a);
+        if(/^[0-9]{1,3}$/.test(v)) clean.setAttribute(a,v); // digits only, hard cap
+      }
+    });
+    var styleVal=sanitizeDmcStyle(node.getAttribute('style'));
+    if(styleVal) clean.setAttribute('style',styleVal);
+    for(var i=0;i<node.childNodes.length;i++){ sanitizeDmcNode(node.childNodes[i],clean); }
+    out.appendChild(clean);
+  } else {
+    // Unknown/disallowed tag (e.g. Outlook/Word wrapper tags): unwrap —
+    // keep its safe children, discard the tag itself, so real content
+    // isn't lost just because of an unfamiliar wrapper element.
+    for(var j=0;j<node.childNodes.length;j++){ sanitizeDmcNode(node.childNodes[j],out); }
+  }
+}
+
+function sanitizeDmcHtml(rawHtml){
+  if(!rawHtml) return '';
+  var doc;
+  try{ doc=new DOMParser().parseFromString(String(rawHtml),'text/html'); }
+  catch(e){ return ''; }
+  if(!doc||!doc.body) return '';
+  var out=document.createElement('div');
+  for(var i=0;i<doc.body.childNodes.length;i++){ sanitizeDmcNode(doc.body.childNodes[i],out); }
+  return out.innerHTML;
 }
 
 function makeVouch(b){
@@ -3782,10 +4004,19 @@ function normalizeBooking(b){
   // never overwrites anything already saved.
   if(b.vehicleRemarks===undefined) b.vehicleRemarks='';
   if(b.paymentPolicy===undefined) b.paymentPolicy='';
+  // V2.5 — Cancellation Policy. Booking-level only (not part of Package
+  // Templates, per approved scope). Same one-line self-heal pattern as
+  // every other field here — plain string, blank default, never overwrites
+  // an already-saved value.
+  if(b.cancellationPolicy===undefined) b.cancellationPolicy='';
   // V2.4 TRIAL — DMC Quotation (Paste). Self-heals old bookings with a blank
   // default; never overwrites anything already saved. Same one-line pattern
   // as every other field above — plain string, no parsing, no new model.
   if(b.dmcQuoteRaw===undefined) b.dmcQuoteRaw='';
+  // V2.6 — DMC Table Paste. Sanitized HTML (tables/bold/line breaks) when
+  // the paste source provided text/html; stays blank when it didn't, in
+  // which case b.dmcQuoteRaw (above) is what's used, exactly as before.
+  if(b.dmcQuoteHtml===undefined) b.dmcQuoteHtml='';
   if(b.packageTemplateId===undefined) b.packageTemplateId=null;
   if(b.packageTemplateName===undefined) b.packageTemplateName='';
   // Installment Payment History — Phase 1: initialize ONLY when missing.
@@ -5890,11 +6121,16 @@ function buildTab(tab){
     var termsTa=mkTextarea(arrToLines(b.terms),function(v){b.terms=linesToArr(v);},'50% advance to confirm booking',4);
     var remarksTa=mkTextarea(b.remarks,function(v){b.remarks=v;},'Any additional notes for this booking',3);
     var payPolTa=mkTextarea(b.paymentPolicy,function(v){b.paymentPolicy=v;},'e.g. 50% advance, 50% before arrival...',3);
+    // V2.5 — Cancellation Policy: booking-level only (per approved scope,
+    // point 12/13 — deliberately NOT wired into Package Template save/load
+    // below, so it never leaks between bookings via a template).
+    var cancelPolTa=mkTextarea(b.cancellationPolicy,function(v){b.cancellationPolicy=v;},'e.g. 14+ days before arrival: no charge. 7–13 days: 50% retention. Under 7 days: 100% retention.',4);
     frag.appendChild(fld('Default Inclusions (one per line)',incTa));
     frag.appendChild(fld('Default Exclusions (one per line)',excTa));
     frag.appendChild(fld('Terms & Conditions (one per line)',termsTa));
     frag.appendChild(fld('Remarks',remarksTa));
     frag.appendChild(fld('Payment Policy',payPolTa));
+    frag.appendChild(fld('Cancellation Policy (optional — appears in quotation PDF if filled)',cancelPolTa));
 
     function openPkgPicker(){
       var list=loadPkgTemplates();
@@ -6308,6 +6544,16 @@ function buildTab(tab){
         childNoBedRateInputM.addEventListener('input',refreshSummary);
         ratesDetails.appendChild(g2([fld('CNB',childNoBedInputM),fld('CNB Rate',childNoBedRateInputM)]));
         body.appendChild(ratesDetails);
+        // V2.7 UI TRIAL — tested directly: a details/summary element's own
+        // box-model height does NOT reliably expand via CSS overrides on
+        // its children alone (confirmed by direct inspection — the element
+        // clips to its closed-state height regardless of child display
+        // values). Setting the real `open` property is the only reliable
+        // fix, so it's done here, width-gated so mobile is unaffected —
+        // this runs on every render (tab switch/add/remove hotel), same as
+        // every other per-hotel binding in this loop, and does not touch
+        // hotelsArr/setHotelField()/calcOpt() in any way.
+        if(window.innerWidth>768){ ratesDetails.open=true; }
 
         // Voucher / Confirmation Details — per-card collapsible (mirrors the
         // shared desktop vDetails block below, but scoped to this one hotel
@@ -6323,6 +6569,8 @@ function buildTab(tab){
         voucherDetails.appendChild(fld('Hotel Contact Number',inp(h.phone,function(v){setHotelField(b,od.n,hidx,'phone',v);},'text','+91 XXXXX XXXXX')));
         voucherDetails.appendChild(g2([fld('Check In Time',inp(h.checkInTime,function(v){setHotelField(b,od.n,hidx,'checkInTime',v);},'time')),fld('Check Out Time',inp(h.checkOutTime,function(v){setHotelField(b,od.n,hidx,'checkOutTime',v);},'time'))]));
         body.appendChild(voucherDetails);
+        // V2.7 UI TRIAL — same reasoning as ratesDetails above.
+        if(window.innerWidth>768){ voucherDetails.open=true; }
 
         if(hotelsArr.length>1){
           var delBtnM=el('button');delBtnM.textContent='✕ Remove Hotel';delBtnM.type='button';delBtnM.className='hcard-m-del';
@@ -6768,9 +7016,9 @@ function buildTab(tab){
     function renderDays(){
       daysWrap.innerHTML='';
       (b.itinerary||[]).forEach(function(day,di){
-        var row=el('div');row.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:10px';
-        var dl=el('div');dl.style.cssText='background:#D4A843;color:#1a1d27;border-radius:6px;padding:7px 6px;font-weight:800;font-size:11px;text-align:center;min-width:42px;flex-shrink:0';dl.textContent='Day '+(di+1);
-        var di2=el('input');di2.className='inp';di2.value=day||'';di2.placeholder='Day '+(di+1)+' activities';di2.addEventListener('input',function(){b.itinerary[di]=di2.value;});
+        var row=el('div');row.style.cssText='display:flex;gap:8px;align-items:flex-start;margin-bottom:10px';
+        var dl=el('div');dl.style.cssText='background:#D4A843;color:#1a1d27;border-radius:6px;padding:7px 6px;font-weight:800;font-size:11px;text-align:center;min-width:42px;flex-shrink:0;margin-top:2px';dl.textContent='Day '+(di+1);
+        var di2=el('textarea');di2.className='inp';di2.rows=4;di2.style.cssText='resize:vertical;line-height:1.5;font-family:inherit';di2.value=day||'';di2.placeholder='Day '+(di+1)+' activities';di2.addEventListener('input',function(){b.itinerary[di]=di2.value;});
         row.appendChild(dl);row.appendChild(di2);daysWrap.appendChild(row);
       });
     }
@@ -6912,39 +7160,102 @@ function buildTab(tab){
   }
 
   // ════════════════════════════════════════════════════════════
-  //  V2.4 TRIAL — DMC QUOTATION (COPY/PASTE) — now its own top-level
-  //  tab (moved out of Docs per approved request) for one-tap access.
-  //  Rendered inline exactly like every other tab (Guest/Package/...):
-  //  the textarea edits b.dmcQuoteRaw live, same as every other field
-  //  in this form, and is persisted whenever the existing sticky
-  //  💾 Save button is tapped — no separate/new save path. "Generate
-  //  PDF" follows the exact same save-then-print pattern as every
-  //  button in the Docs tab (see dbtn() above), reusing the SAME
-  //  saveBooking() and openPrint(). Still does not parse the pasted
-  //  text, still does not touch calcOpt(), Hotel Rate Master, Payment,
-  //  Revision, or Sync.
+  //  V2.4/V2.6 — DMC QUOTATION (COPY/PASTE) — top-level tab.
+  //  V2.6 replaces the plain <textarea> (which can only ever hold plain
+  //  text — a hard browser limitation, not a design choice) with a
+  //  contenteditable box that can receive and display a real pasted
+  //  HTML table (rows/columns/bold/highlights) when the copy source
+  //  provides one, while falling back to the exact original plain-text
+  //  behavior when it doesn't. Still no parsing of rates/content, still
+  //  no table editor, still doesn't touch calcOpt(), Hotel Rate Master,
+  //  Payment, Revision, or Sync. See sanitizeDmcHtml() for the security
+  //  boundary — the ONLY place untrusted pasted markup is allowed
+  //  through, and only via an explicit tag/attribute allowlist.
   // ════════════════════════════════════════════════════════════
   else if(tab==='dmc'){
     frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:6px','📝 DMC Quotation — Paste & Edit'));
-    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:12px','Paste the complete DMC quotation below. Edit rates, amounts, dates, names or any text as needed — it is used exactly as typed, then tap Generate PDF.'));
-    var dmcTa=el('textarea');
-    dmcTa.style.cssText='width:100%;min-height:340px;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:12px;font-size:12.5px;font-family:inherit;line-height:1.6;resize:vertical;box-sizing:border-box';
-    dmcTa.value=b.dmcQuoteRaw||'';
-    dmcTa.placeholder='Paste the complete DMC quotation here...';
-    dmcTa.addEventListener('input',function(){ b.dmcQuoteRaw=dmcTa.value; });
-    frag.appendChild(dmcTa);
+    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:10px','Copy the DMC quotation (including any table) from your email and paste it below. Edit rates, amounts, dates, names or any text as needed, then tap Generate PDF.'));
+
+    var dmcBox=el('div');
+    dmcBox.contentEditable='true';
+    dmcBox.setAttribute('data-placeholder','Paste the complete DMC quotation here...');
+    dmcBox.style.cssText='width:100%;min-height:340px;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:12px;font-size:12.5px;font-family:inherit;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;box-sizing:border-box;overflow-y:auto';
+    // CSS-only placeholder trick — contenteditable has no native placeholder attribute.
+    if(!document.getElementById('dmcPlaceholderStyle')){
+      var pst=el('style');pst.id='dmcPlaceholderStyle';
+      pst.textContent='[contenteditable][data-placeholder]:empty:before{content:attr(data-placeholder);color:#6B6474;pointer-events:none}'
+        +'.dmc-ce table{width:100%;border-collapse:collapse;margin:4px 0}'
+        +'.dmc-ce td,.dmc-ce th{border:1px solid #3A3D4A;padding:5px 7px;font-size:11.5px}'
+        +'.dmc-ce th{background:#22252F;font-weight:700}';
+      document.head.appendChild(pst);
+    }
+    dmcBox.className='dmc-ce';
+
+    // Pre-fill from whatever was saved before — sanitized HTML takes
+    // priority (it's our own prior output, already safe); otherwise the
+    // plain-text fallback, unchanged from before this feature existed.
+    if(b.dmcQuoteHtml){ dmcBox.innerHTML=b.dmcQuoteHtml; }
+    else if(b.dmcQuoteRaw){ dmcBox.textContent=b.dmcQuoteRaw; }
+
+    var dmcStatus=el('div');
+    dmcStatus.style.cssText='font-size:11px;margin-top:8px;min-height:16px';
+    function showDmcStatus(hadHtml){
+      if(hadHtml){ dmcStatus.textContent='✅ Table structure captured'; dmcStatus.style.color='#4CAF7D'; }
+      else{ dmcStatus.textContent="ℹ️ Plain text only — source didn't provide formatting"; dmcStatus.style.color='#8A8272'; }
+    }
+
+    // Paste: read text/html first (Baseline-supported paste event, works
+    // the same way on desktop and mobile Chrome — see approved audit).
+    // Whether HTML is actually ON the clipboard depends on the source
+    // app (Gmail, Outlook, etc.), not on this code — hence the visible
+    // status message either way, rather than silently assuming success.
+    dmcBox.addEventListener('paste',function(e){
+      e.preventDefault();
+      var cd=e.clipboardData||window.clipboardData;
+      var htmlData=cd?cd.getData('text/html'):'';
+      var textData=cd?cd.getData('text/plain'):'';
+      if(htmlData&&htmlData.trim()){
+        var safe=sanitizeDmcHtml(htmlData);
+        if(safe&&safe.replace(/<[^>]*>/g,'').trim()){
+          document.execCommand('insertHTML',false,safe);
+          showDmcStatus(true);
+        } else {
+          document.execCommand('insertText',false,textData);
+          showDmcStatus(false);
+        }
+      } else {
+        document.execCommand('insertText',false,textData);
+        showDmcStatus(false);
+      }
+    });
+    // Drag-and-drop isn't part of the approved Copy→Paste flow — block it
+    // cleanly rather than leaving an unhandled path for the browser's own
+    // default drop behavior (which could insert unsanitized content).
+    dmcBox.addEventListener('dragover',function(e){ e.preventDefault(); });
+    dmcBox.addEventListener('drop',function(e){ e.preventDefault(); });
+
+    frag.appendChild(dmcBox);
+    frag.appendChild(dmcStatus);
+
     var dmcGenBtn=btn('📄 Generate PDF','btn bg',function(){
       var orig=dmcGenBtn.textContent;
       dmcGenBtn.disabled=true; dmcGenBtn.textContent='⏳ Please wait...';
+      // Final defense-in-depth re-sanitization pass, right before this
+      // content is ever saved or rendered — independent of whatever
+      // happened during editing.
+      var finalHtml=sanitizeDmcHtml(dmcBox.innerHTML);
+      var plainText=dmcBox.textContent||'';
+      b.dmcQuoteRaw=plainText;
+      b.dmcQuoteHtml=(finalHtml&&plainText.trim())?finalHtml:'';
       withTimeout(saveBooking(b),15000,'Save').then(function(){
-        openPrint(makeDmcQuot(b,b.dmcQuoteRaw),pdfFileName(b.guestName,'Quotation')+'.pdf');
+        openPrint(makeDmcQuot(b,b.dmcQuoteRaw,b.dmcQuoteHtml),pdfFileName(b.guestName,'Quotation')+'.pdf');
         dmcGenBtn.disabled=false; dmcGenBtn.textContent=orig;
       }).catch(function(err){
         dmcGenBtn.disabled=false; dmcGenBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
       });
     });
-    dmcGenBtn.style.cssText+='width:100%;margin-top:12px';
+    dmcGenBtn.style.cssText+='width:100%;margin-top:4px';
     frag.appendChild(dmcGenBtn);
   }
   return frag;
@@ -7843,46 +8154,13 @@ function mAuthShell(html){
   return wrap;
 }
 
-// NEW: generate a random Recovery Key, e.g. MH-7XQ9-P2LK-8AZR
-// Uses crypto.getRandomValues (not Math.random) and an alphabet that
-// excludes look-alike characters (0/O, 1/I/L) to reduce transcription errors.
-function mAuthGenerateRecoveryKey(){
-  var alphabet='23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-  var out='MH';
-  for(var g=0; g<3; g++){
-    var part='';
-    var rand=new Uint32Array(4);
-    crypto.getRandomValues(rand);
-    for(var i=0;i<4;i++){ part+=alphabet[rand[i]%alphabet.length]; }
-    out+='-'+part;
-  }
-  return out;
-}
-
-// NEW: show the Recovery Key exactly once (right after first-time setup).
-// The key itself is never stored anywhere — only its SHA-256 hash was
-// already saved by the caller before this screen is shown.
-function mAuthShowRecoveryKeyOnce(key,onDone){
-  var wrap=mAuthShell(
-    '<div style="width:100%;max-width:380px;text-align:center">'
-    +'<div style="font-size:40px;margin-bottom:6px">🗝️</div>'
-    +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Your Recovery Key</div>'
-    +'<div style="font-size:12px;color:#E74C3C;font-weight:700;margin-bottom:16px;line-height:1.6">Save this Recovery Key safely.<br>It will never be shown again.<br>It is required if you forget your password.</div>'
-    +'<div style="font-family:monospace;font-size:18px;letter-spacing:1px;color:#E8E0D0;background:#1A1D27;border:1.5px solid #2A2D3A;border-radius:8px;padding:16px;margin-bottom:16px;word-break:break-all">'+key+'</div>'
-    +'<label style="display:flex;align-items:flex-start;gap:8px;text-align:left;font-size:11.5px;color:#8A8090;margin-bottom:16px;cursor:pointer"><input type="checkbox" id="mAuthRkAck" style="margin-top:2px"> I have saved this Recovery Key in a safe place</label>'
-    +'<button id="mAuthRkCont" style="'+MAUTH_BTN_CSS+'" disabled>Continue</button>'
-    +'</div>'
-  );
-  var ack=document.getElementById('mAuthRkAck'),btn=document.getElementById('mAuthRkCont');
-  ack.onchange=function(){ btn.disabled=!ack.checked; };
-  btn.onclick=function(){
-    if(!ack.checked) return;
-    wrap.remove();
-    onDone();
-  };
-}
-
-// First-time setup: create + confirm password
+// First-time setup: create + confirm password, and create + confirm a
+// 6-digit Security PIN (replaces the old Recovery Key generation/display
+// flow entirely — see V2.4 audit). Only SHA-256(PIN) is ever stored, via
+// the SAME MAUTH.setRecoveryHash()/mishriAuth_recovery_hash_v1 used
+// before — no new localStorage key. If a recovery hash already exists
+// (e.g. this is a Path B reset), it is safely overwritten with the new
+// PIN's hash, exactly like the password hash already is today.
 function mAuthShowSetup(onDone){
   if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Login cannot be set up.</div>'); return; }
   var wrap=mAuthShell(
@@ -7893,36 +8171,43 @@ function mAuthShowSetup(onDone){
     +'<div id="mAuthErr" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
     +mAuthPwField('mAuthP1','New password (min 4 characters)')
     +mAuthPwField('mAuthP2','Confirm password')
+    +'<div style="font-size:11.5px;color:#8A8090;margin:18px 0 8px;text-align:left">Create a 6-digit Security PIN — used only if you forget your password.</div>'
+    +'<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="mAuthPin1" placeholder="6-digit Security PIN" style="'+MAUTH_INPUT_CSS+'letter-spacing:4px;text-align:center">'
+    +'<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="mAuthPin2" placeholder="Confirm Security PIN" style="'+MAUTH_INPUT_CSS+'letter-spacing:4px;text-align:center">'
     +'<button id="mAuthSetupBtn" style="'+MAUTH_BTN_CSS+'">Set Password &amp; Continue</button>'
-    +'<div style="font-size:10.5px;color:#5C5468;margin-top:14px;line-height:1.5">Only a one-way SHA-256 hash of this password is saved on this device (localStorage). The password itself is never stored, and nothing is sent over the network.</div>'
+    +'<div style="font-size:10.5px;color:#5C5468;margin-top:14px;line-height:1.5">Only a one-way SHA-256 hash of your password and PIN is saved on this device (localStorage). Neither is ever stored in plain text, and nothing is sent over the network.</div>'
     +'</div>'
   );
   mAuthWireEyeToggles();
   var p1=document.getElementById('mAuthP1'),p2=document.getElementById('mAuthP2');
+  var pin1=document.getElementById('mAuthPin1'),pin2=document.getElementById('mAuthPin2');
   var btn=document.getElementById('mAuthSetupBtn'),err=document.getElementById('mAuthErr');
+  function digitsOnly(inp){ inp.value=inp.value.replace(/[^0-9]/g,'').slice(0,6); }
+  pin1.oninput=function(){ digitsOnly(pin1); };
+  pin2.oninput=function(){ digitsOnly(pin2); };
   function go(){
-    var a=p1.value,b=p2.value;
+    var a=p1.value,b=p2.value,pa=pin1.value,pb=pin2.value;
     err.textContent='';
     if(!a||a.length<4){ err.textContent='Password must be at least 4 characters.'; return; }
     if(a!==b){ err.textContent='Passwords do not match.'; return; }
+    if(!/^[0-9]{6}$/.test(pa)){ err.textContent='Security PIN must be exactly 6 digits (numbers only).'; return; }
+    if(pa!==pb){ err.textContent='Security PIN entries do not match.'; return; }
     btn.disabled=true; btn.textContent='Saving...';
     MAUTH.sha256Hex(a).then(function(hash){
       MAUTH.setHash(hash);
-      // NEW: generate a Recovery Key, store only its SHA-256 hash, then
-      // display the plain key exactly once. Password/session logic below
-      // is unchanged from before.
-      var recoveryKey=mAuthGenerateRecoveryKey();
-      MAUTH.sha256Hex(recoveryKey).then(function(rHash){
-        MAUTH.setRecoveryHash(rHash);
+      MAUTH.sha256Hex(pa).then(function(pHash){
+        MAUTH.setRecoveryHash(pHash); // overwrites any prior recovery/PIN hash, same as before
         MAUTH.clearAttempts();
         MAUTH.setSession();
         wrap.remove();
-        mAuthShowRecoveryKeyOnce(recoveryKey,onDone);
+        onDone();
       });
     });
   }
   btn.onclick=go;
-  p2.onkeydown=function(e){if(e.key==='Enter')go();};
+  pin2.onkeydown=function(e){if(e.key==='Enter')go();};
+  pin1.onkeydown=function(e){if(e.key==='Enter')pin2.focus();};
+  p2.onkeydown=function(e){if(e.key==='Enter')pin1.focus();};
   p1.onkeydown=function(e){if(e.key==='Enter')p2.focus();};
   p1.focus();
 }
@@ -7955,13 +8240,14 @@ function mAuthShowLocked(lockUntil,onDone){
 // NEW: Forgot Password — step 1, enter Recovery Key
 function mAuthShowForgotEnterKey(onDone){
   if(!MAUTH.getRecoveryHash()){
-    // Backward compatibility: logins created before this feature existed
-    // have no Recovery Key on file. Say so plainly instead of breaking.
+    // Backward compatibility: logins with no Security PIN on file
+    // (e.g. created before this feature existed). Say so plainly instead
+    // of breaking.
     var noKeyWrap=mAuthShell(
       '<div style="width:100%;max-width:340px;text-align:center">'
       +'<div style="font-size:40px;margin-bottom:6px">⚠️</div>'
       +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Mishri Holidays</div>'
-      +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.5">No Recovery Key is on file for this login, so password reset via Recovery Key is not available.</div>'
+      +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.5">No Security PIN is on file for this login, so password reset via Security PIN is not available.</div>'
       +'<button id="mAuthNoKeyReset" style="'+MAUTH_BTN_CSS+'">Reset Login Password Instead</button>'
       +'<div id="mAuthForgotBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
       +'</div>'
@@ -7970,31 +8256,49 @@ function mAuthShowForgotEnterKey(onDone){
     document.getElementById('mAuthForgotBack').onclick=function(){ mAuthShowLogin(null,onDone); };
     return;
   }
-  if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Cannot verify Recovery Key.</div>'); return; }
+  // Shared lockout check — same MAUTH.getAttempts()/MAX_ATTEMPTS/LOCK_MS
+  // bucket as the main password screen (mAuthShowLogin). A user already
+  // locked out from wrong passwords cannot bypass it by trying PIN guesses
+  // here instead, and vice versa.
+  var att=MAUTH.getAttempts();
+  if(att.lockUntil && Date.now()<att.lockUntil){ mAuthShowLocked(att.lockUntil,onDone); return; }
+  if(!window.crypto||!window.crypto.subtle){ mAuthShell('<div style="color:#E74C3C;text-align:center;max-width:320px">This browser does not support the Web Crypto API (SHA-256), or the app is not loaded over HTTPS/localhost. Cannot verify Security PIN.</div>'); return; }
   var wrap=mAuthShell(
     '<div style="width:100%;max-width:360px;text-align:center">'
-    +'<div style="font-size:40px;margin-bottom:6px">🗝️</div>'
+    +'<div style="font-size:40px;margin-bottom:6px">🔢</div>'
     +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Forgot Password</div>'
-    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Enter your Recovery Key to reset your password</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Enter your 6-digit Security PIN to reset your password</div>'
     +'<div id="mAuthFgErr" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
-    +'<input type="text" id="mAuthFgKey" placeholder="MH-XXXX-XXXX-XXXX" style="'+MAUTH_INPUT_CSS+'text-transform:uppercase">'
-    +'<button id="mAuthFgVerify" style="'+MAUTH_BTN_CSS+'">Verify Recovery Key</button>'
+    +'<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="mAuthFgKey" placeholder="6-digit Security PIN" style="'+MAUTH_INPUT_CSS+'letter-spacing:4px;text-align:center">'
+    +'<button id="mAuthFgVerify" style="'+MAUTH_BTN_CSS+'">Verify Security PIN</button>'
     +'<div id="mAuthFgBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
     +'</div>'
   );
   var keyInput=document.getElementById('mAuthFgKey'),btn=document.getElementById('mAuthFgVerify'),err=document.getElementById('mAuthFgErr');
+  keyInput.oninput=function(){ keyInput.value=keyInput.value.replace(/[^0-9]/g,'').slice(0,6); };
   function verify(){
-    var entered=(keyInput.value||'').trim().toUpperCase();
-    if(!entered) return;
+    var entered=keyInput.value||'';
     err.textContent='';
+    if(!/^[0-9]{6}$/.test(entered)){ err.textContent='Enter exactly 6 digits.'; return; }
     btn.disabled=true; btn.textContent='Verifying...';
     MAUTH.sha256Hex(entered).then(function(hash){
       if(hash===MAUTH.getRecoveryHash()){
+        MAUTH.clearAttempts(); // same shared counter the password screen uses
         wrap.remove();
         mAuthShowForgotNewPassword(onDone);
       } else {
-        btn.disabled=false; btn.textContent='Verify Recovery Key';
-        err.textContent='Invalid Recovery Key.'; // deliberately generic
+        var a=MAUTH.getAttempts();
+        a.count=(a.count||0)+1;
+        if(a.count>=MAUTH.MAX_ATTEMPTS){
+          a.lockUntil=Date.now()+MAUTH.LOCK_MS; a.count=0;
+          MAUTH.setAttempts(a);
+          wrap.remove();
+          mAuthShowLocked(a.lockUntil,onDone);
+        } else {
+          MAUTH.setAttempts(a);
+          btn.disabled=false; btn.textContent='Verify Security PIN';
+          err.textContent='Invalid Security PIN. '+(MAUTH.MAX_ATTEMPTS-a.count)+' attempt(s) remaining before lockout.';
+        }
       }
     });
   }
@@ -8004,14 +8308,14 @@ function mAuthShowForgotEnterKey(onDone){
   keyInput.focus();
 }
 
-// NEW: Forgot Password — step 2, Recovery Key verified, set a new password.
-// The Recovery Key itself (and its stored hash) is left untouched.
+// NEW: Forgot Password — step 2, Security PIN verified, set a new password.
+// The Security PIN itself (and its stored hash) is left untouched.
 function mAuthShowForgotNewPassword(onDone){
   var wrap=mAuthShell(
     '<div style="width:100%;max-width:360px;text-align:center">'
     +'<div style="font-size:40px;margin-bottom:6px">🔐</div>'
     +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Create New Password</div>'
-    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Recovery Key verified. Set a new password.</div>'
+    +'<div style="font-size:12px;color:#8A8090;margin-bottom:20px">Security PIN verified. Set a new password.</div>'
     +'<div id="mAuthFgErr2" style="color:#E74C3C;font-size:12px;margin-bottom:12px"></div>'
     +mAuthPwField('mAuthFgP1','New password (min 4 characters)')
     +mAuthPwField('mAuthFgP2','Confirm new password')
@@ -8028,7 +8332,7 @@ function mAuthShowForgotNewPassword(onDone){
     if(a!==b){ err.textContent='Passwords do not match.'; return; }
     btn.disabled=true; btn.textContent='Saving...';
     MAUTH.sha256Hex(a).then(function(hash){
-      MAUTH.setHash(hash);         // Recovery Key hash is NOT touched — same key still works next time
+      MAUTH.setHash(hash);         // Security PIN hash is NOT touched — same PIN still works next time
       MAUTH.clearAttempts();
       MAUTH.clearSession();        // logout all existing sessions
       wrap.remove();
@@ -8042,8 +8346,8 @@ function mAuthShowForgotNewPassword(onDone){
 
 // NEW: dedicated "Password Reset Successful" confirmation screen, shown
 // after mAuthShowForgotNewPassword() saves a new password via the
-// Recovery Key flow. Purely a confirmation UI — displays no password,
-// no Recovery Key, and no hash of either. Replaces the previous
+// Security PIN flow. Purely a confirmation UI — displays no password,
+// no Security PIN, and no hash of either. Replaces the previous
 // toast+immediate-redirect with an explicit screen and button, per the
 // approved V2.4 audit. Does not touch MAUTH.*, hashing, attempts, or
 // session logic — the actual reset already happened in the caller above.
@@ -8062,21 +8366,21 @@ function mAuthShowResetSuccess(onDone){
   };
 }
 
-// NEW: "No Recovery Key" login reset. Resets ONLY the login password —
+// NEW: "No Security PIN" login reset. Resets ONLY the login password —
 // booking/guest/payment data lives in IndexedDB plus separate 'mc_'-prefixed
 // localStorage keys (see the STORAGE comment near the top of this file) and
 // is completely untouched by this. It simply removes the single password
 // hash key so the app falls back to the exact same first-time-setup screen
-// (mAuthShowSetup) used for a brand-new install, which as usual generates
-// and displays a fresh Recovery Key to save. Does not modify MAUTH.*,
-// getHash/setHash, or any existing auth function.
+// (mAuthShowSetup) used for a brand-new install, which as usual has the
+// user create a fresh Security PIN. Does not modify MAUTH.*, getHash/
+// setHash, or any existing auth function.
 function mAuthShowResetNoRecovery(onDone){
   var wrap=mAuthShell(
     '<div style="width:100%;max-width:340px;text-align:center">'
     +'<div style="font-size:40px;margin-bottom:6px">⚠️</div>'
     +'<div style="font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:900;color:#D4A843;margin-bottom:4px">Reset Login Password</div>'
     +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:8px;line-height:1.6">This resets only your <b>login password</b>. Your bookings, guests, and payment records are stored separately on this device and will <b>not</b> be affected.</div>'
-    +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.6">You will set a new password and get a new Recovery Key — please save it somewhere safe this time.</div>'
+    +'<div style="font-size:12.5px;color:#8A8090;margin-bottom:20px;line-height:1.6">You will set a new password and a new Security PIN — please remember it this time.</div>'
     +'<button id="mAuthResetNoRecBtn" style="'+MAUTH_BTN_CSS+'">Yes, Reset Login Password</button>'
     +'<div id="mAuthResetNoRecBack" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Back to Login</div>'
     +'</div>'
@@ -8102,7 +8406,7 @@ function mAuthShowLogin(msg,onDone){
     +mAuthPwField('mAuthPass','Password')
     +'<button id="mAuthLoginBtn" style="'+MAUTH_BTN_CSS+'">Unlock</button>'
     +'<div id="mAuthForgotLink" style="margin-top:14px;font-size:12px;color:#8A8090;cursor:pointer;text-decoration:underline">Forgot Password?</div>'
-    +'<div id="mAuthNoRecLink" style="margin-top:8px;font-size:11.5px;color:#6B6474;cursor:pointer;text-decoration:underline">No Recovery Key? Reset Login</div>'
+    +'<div id="mAuthNoRecLink" style="margin-top:8px;font-size:11.5px;color:#6B6474;cursor:pointer;text-decoration:underline">No Security PIN? Reset Login</div>'
     +'</div>'
   );
   mAuthWireEyeToggles();
