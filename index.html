@@ -416,7 +416,7 @@ input,select,button{font-family:inherit}
 .og{background:rgba(212,168,67,0.08);color:#F0C869;border-color:rgba(212,168,67,0.55)}
 .ob{background:rgba(52,152,219,0.08);color:#5DADE2;border-color:rgba(52,152,219,0.55)}
 .or{background:rgba(231,76,60,0.08);color:#EC7063;border-color:rgba(231,76,60,0.55)}
-.bm{background:transparent;color:#9b96a3;border-color:rgba(255,255,255,0.16)}
+.bm{background:rgba(255,255,255,0.08);color:#EDEBF2;border-color:rgba(255,255,255,0.38)}
 .gn{background:linear-gradient(135deg,#58D68D,#2ECC71);color:#0c2417;border-color:transparent;box-shadow:0 4px 14px rgba(46,204,113,.28)}
 .bn{background:linear-gradient(135deg,#5DADE2,#3498DB);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(52,152,219,.28)}
 .pp{background:linear-gradient(135deg,#BB79D6,#9B59B6);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(155,89,182,.28)}
@@ -766,6 +766,16 @@ details summary::-webkit-details-marker{color:#D4A843}
 #formBar .bm{
   color:#6B6459;
   border-color:#D9D3C4;
+}
+/* The tabnav Prev/Next row (e.g. "← Docs") lives INSIDE the tab-content
+   card, which keeps its own dark inline background (rgba(32,35,48,.72))
+   even while form-open — the light-card override two rules above assumes
+   a white card and doesn't apply here via specificity, so it needs its
+   own bright treatment to stay legible on that dark surface. */
+#content.form-open .tabnav .bm{
+  background:rgba(255,255,255,0.08);
+  color:#EDEBF2;
+  border-color:rgba(255,255,255,0.38);
 }
 
 /* "Select Existing Customer" — its own class (.pickcust) so this one
@@ -1396,6 +1406,16 @@ function bDash(){
         +'<span style="font-size:11px;color:#8A8090">Received: '+fmt(psum.totalReceived)+' &bull; Balance: '+fmt(psum.balance)+'</span>'
         +'</div>';
     }
+    // Dashboard — DMC Billing (manually entered amount, separate from the
+    // Hotel-costing-based Grand Total shown on the right of the card above).
+    // Purely additive: reads b.dmcBillingAmount only, never calcOpt()/
+    // c.grandTotal, so the existing Grand Total figure is completely
+    // untouched. Only rendered when a value has actually been entered, so
+    // bookings without a DMC amount look exactly as they did before.
+    var dmcHtml='';
+    if(b.dmcBillingAmount){
+      dmcHtml='<div style="margin-top:6px;font-size:11px;color:#8A8090">DMC Billing: <span style="font-weight:700;color:#1a1d27">'+fmt(b.dmcBillingAmount)+'</span></div>';
+    }
     card.innerHTML='<div class="row">'
       +'<div style="display:flex;align-items:center;gap:11px;min-width:0">'
       +'<div class="icon-badge" style="background:'+sc2+'1f;color:'+sc2+';font-size:13px;font-weight:800;font-family:Poppins">'+initials+'</div>'
@@ -1407,7 +1427,8 @@ function bDash(){
       +'</div></div></div>'
       +'<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc2+'22;color:'+sc2+'">'+b.status+'</span></div>'
       +'</div>'
-      +payHtml;
+      +payHtml
+      +dmcHtml;
     card.addEventListener('click',function(){APP.edit=JSON.parse(JSON.stringify(b));APP.ftab='guest';go('form');});
     attachLongPress(card,b);
     wrap.appendChild(card);});}
@@ -2504,7 +2525,7 @@ var DMC_ALLOWED_TAGS={
   P:1,BR:1,STRONG:1,B:1,EM:1,I:1,U:1,SPAN:1,DIV:1,UL:1,OL:1,LI:1
 };
 var DMC_ALLOWED_ATTRS={ TD:['colspan','rowspan'], TH:['colspan','rowspan'] };
-var DMC_SAFE_STYLE_PROPS=['font-weight','text-align','background-color','color'];
+var DMC_SAFE_STYLE_PROPS=['font-weight','text-align'];
 
 function sanitizeDmcStyle(styleStr){
   if(!styleStr) return '';
@@ -2756,6 +2777,11 @@ function makeVouch(b){
     +'<div class="vg-row"><span class="vg-label">Tour Start:</span><span class="vg-value">'+fmtD(b.startDate)+'</span></div>'
     +'<div class="vg-row"><span class="vg-label">Tour End:</span><span class="vg-value">'+fmtD(b.endDate)+'</span></div>'
     +'<div class="vg-row"><span class="vg-label">Destination:</span><span class="vg-value">'+b.destination+'</span></div>'
+    // DMC Billing Amount — display-only, read from the manually entered
+    // b.dmcBillingAmount (DMC tab). Never affects calcOpt()/c.grandTotal or
+    // any Voucher calculation. Only shown when a value has actually been
+    // entered, so vouchers for bookings without one look exactly as before.
+    +(b.dmcBillingAmount?'<div class="vg-row"><span class="vg-label">DMC Billing Amount:</span><span class="vg-value"><b>'+fmt(b.dmcBillingAmount)+'</b></span></div>':'')
     +'</div>';
 
   var guestBox=''
@@ -2882,6 +2908,11 @@ function makeInv(b){
     +'</tbody></table>'
 
     +'<table class="totals" style="margin-top:8px">'
+    // DMC Billing Amount — display-only info row, read from the manually
+    // entered b.dmcBillingAmount (DMC tab). Deliberately independent of the
+    // GST / GRAND TOTAL rows below, which keep using the existing
+    // displayGrandTotal/invItems/GST calculation exactly as before.
+    +(b.dmcBillingAmount?'<tr><td>DMC Billing Amount</td><td class="r">'+fmt(b.dmcBillingAmount)+'</td></tr>':'')
     +'<tr class="gst"><td>GST</td><td class="r">'+(c.gstPct>0?c.gstPct+'% included in rates above':'Not applicable / not included')+'</td></tr>'
     +'<tr class="grand"><td>GRAND TOTAL</td><td class="r">'+fmt(displayGrandTotal)+'</td></tr>'
     +'</table>'
@@ -3032,6 +3063,13 @@ function makeReceipt(b,paymentIdx){
     +'<table class="dt">'
     +'<tr><td class="k">Payment Mode</td><td class="v">'+(paymentMode||'Cash')+'</td></tr>'
     +'<tr><td class="k">Received By</td><td class="v">'+(receivedByName||'Mishri Holidays')+'</td></tr>'
+    // DMC Billing Amount — display-only info row, read from the manually
+    // entered b.dmcBillingAmount (DMC tab). Deliberately independent of
+    // "Total Bill Amount" / "Total Received Till This Payment" / Balance
+    // below, which keep using the existing invItems/grandTotal/paymentHistory
+    // calculation exactly as before — installment/part-payment math is
+    // completely unchanged.
+    +(b.dmcBillingAmount?'<tr><td class="k">DMC Billing Amount</td><td class="v">'+fmt(b.dmcBillingAmount)+'</td></tr>':'')
     +'<tr><td class="k">Total Bill Amount</td><td class="v">'+fmt(grandTotal)+'</td></tr>'
     +'<tr><td class="k">Total Received Till This Payment</td><td class="v">'+fmt(totalTillThis)+'</td></tr>'
     +'</table>'
@@ -4017,6 +4055,11 @@ function normalizeBooking(b){
   // the paste source provided text/html; stays blank when it didn't, in
   // which case b.dmcQuoteRaw (above) is what's used, exactly as before.
   if(b.dmcQuoteHtml===undefined) b.dmcQuoteHtml='';
+  // DMC Billing Amount — manually entered only (never auto-calculated, never
+  // touched by the DMC paste/HTML handlers or by calcOpt()). Self-heals old
+  // bookings with a numeric 0 default; never overwrites anything already
+  // saved. Same one-line pattern as every other field in this block.
+  if(b.dmcBillingAmount===undefined) b.dmcBillingAmount=0;
   if(b.packageTemplateId===undefined) b.packageTemplateId=null;
   if(b.packageTemplateName===undefined) b.packageTemplateName='';
   // Installment Payment History — Phase 1: initialize ONLY when missing.
@@ -5818,6 +5861,13 @@ function bList(){
       var pc=priorityColor(b.priority);
       var initials=getInitials(b.guestName);
       var card=el('div');card.className='card';
+      // Bookings List — DMC Billing (manually entered amount, separate from
+      // the Hotel-costing-based Grand Total shown on the right of the card).
+      // Purely additive: reads b.dmcBillingAmount only, never calcOpt()/
+      // c.grandTotal, so the existing Grand Total figure is completely
+      // untouched. Only rendered when a value has actually been entered, so
+      // bookings without a DMC amount look exactly as they did before.
+      var dmcListHtml=b.dmcBillingAmount?('<div style="font-size:10.5px;color:#8A8090;margin-top:3px">DMC: <b style="color:#1a1d27">'+fmt(b.dmcBillingAmount)+'</b></div>'):'';
       card.innerHTML='<div class="row" style="margin-bottom:10px;align-items:flex-start">'
         +'<div style="display:flex;align-items:center;gap:11px;min-width:0">'
         +'<div class="icon-badge" style="background:'+sc+'1f;color:'+sc+';font-size:13px;font-weight:800;font-family:Poppins;flex-shrink:0">'+initials+'</div>'
@@ -5828,7 +5878,7 @@ function bList(){
         +(b.followUpDate?'<span style="font-size:10px;color:#8A8090">&#128197; '+fmtD(b.followUpDate)+'</span>':'')
         +'</div>'
         +'<div style="font-size:11px;color:#8A8090">&#9990; '+(b.contact||'—')+'</div></div></div>'
-        +'<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc+'22;color:'+sc+'">'+b.status+'</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"></div>';
+        +'<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc+'22;color:'+sc+'">'+b.status+'</span>'+dmcListHtml+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"></div>';
       var br=card.querySelector('div:last-child');
       (function(bk){
         withTooltip(br.appendChild(btn('📄','btn sm ob',function(){fastQuot(bk);})),'Generate Quotation');
@@ -7179,7 +7229,7 @@ function buildTab(tab){
     var dmcBox=el('div');
     dmcBox.contentEditable='true';
     dmcBox.setAttribute('data-placeholder','Paste the complete DMC quotation here...');
-    dmcBox.style.cssText='width:100%;min-height:340px;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:12px;font-size:12.5px;font-family:inherit;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;box-sizing:border-box;overflow-y:auto';
+    dmcBox.style.cssText='width:100%;min-height:340px;max-height:340px;background:#1A1D27;color:#E8E0D0;border:1px solid #2A2D3A;border-radius:8px;padding:12px;font-size:12.5px;font-family:inherit;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;box-sizing:border-box;overflow-y:auto';
     // CSS-only placeholder trick — contenteditable has no native placeholder attribute.
     if(!document.getElementById('dmcPlaceholderStyle')){
       var pst=el('style');pst.id='dmcPlaceholderStyle';
@@ -7194,7 +7244,13 @@ function buildTab(tab){
     // Pre-fill from whatever was saved before — sanitized HTML takes
     // priority (it's our own prior output, already safe); otherwise the
     // plain-text fallback, unchanged from before this feature existed.
-    if(b.dmcQuoteHtml){ dmcBox.innerHTML=b.dmcQuoteHtml; }
+    // Re-run through sanitizeDmcHtml() on load (not just on paste): content
+    // saved by an OLDER version of this sanitizer (e.g. before color/
+    // background-color were removed from the allowed style list) could
+    // still carry those dirty inline styles in storage. Re-sanitizing here
+    // cleans that up automatically the next time the tab is opened, without
+    // needing the guest quotation to be re-pasted.
+    if(b.dmcQuoteHtml){ dmcBox.innerHTML=sanitizeDmcHtml(b.dmcQuoteHtml); }
     else if(b.dmcQuoteRaw){ dmcBox.textContent=b.dmcQuoteRaw; }
 
     var dmcStatus=el('div');
@@ -7236,6 +7292,18 @@ function buildTab(tab){
 
     frag.appendChild(dmcBox);
     frag.appendChild(dmcStatus);
+
+    // DMC Billing Amount — MANUAL ENTRY ONLY. Deliberately isolated from the
+    // paste box, sanitizeDmcHtml() and makeDmcQuot() above: nothing in the
+    // pasted/edited quotation content ever reads, writes, or calculates this
+    // value. It is a plain number field bound straight to b.dmcBillingAmount,
+    // saved the same way as every other plain booking field (direct object
+    // write via inp()'s setter — no separate save wiring needed here beyond
+    // the existing Generate PDF / booking Save flow already in place).
+    var dmcBillWrap=el('div');dmcBillWrap.style.cssText='margin-top:14px';
+    var dmcBillInput=inp(b.dmcBillingAmount,function(v){b.dmcBillingAmount=v;},'number','0');
+    dmcBillWrap.appendChild(fld('DMC Billing Amount (manual entry only)',dmcBillInput));
+    frag.appendChild(dmcBillWrap);
 
     var dmcGenBtn=btn('📄 Generate PDF','btn bg',function(){
       var orig=dmcGenBtn.textContent;
