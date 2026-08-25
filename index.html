@@ -2125,6 +2125,9 @@ function makeQuot(b,on){
     +'.footer-contact{font-size:9.5px;color:#666}'
     +'.footer-note{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:9.5px;color:#999}'
     +'@media print{.page{padding:6mm 10mm}}'
+    +'.hotel-acc-tbl{border:1.5px solid #aaa}'
+    +'.hotel-acc-tbl th,.hotel-acc-tbl td{border:1.5px solid #aaa;padding-top:8px;padding-bottom:8px}'
+    +'.hotel-acc-tbl th{border-color:rgba(255,255,255,0.28)}'
     +docPolishCss()+'</style></head><body><div class="page">'
 
     // Logo bar — left side now shows the official logo image via the shared
@@ -2164,7 +2167,7 @@ function makeQuot(b,on){
     // Hotel & Accommodation
     +(hotelRows?
       '<div class="section-title">HOTEL &amp; ACCOMMODATION DETAILS</div>'
-      +'<table><tr><th>Destination</th><th>Hotel &amp; Room Category</th><th style="text-align:center">Check-In</th><th style="text-align:center">Check-Out</th><th style="text-align:center">Meal Plan</th><th style="text-align:center">Rooms</th></tr>'
+      +'<table class="hotel-acc-tbl"><tr><th>Destination</th><th>Hotel &amp; Room Category</th><th style="text-align:center">Check-In</th><th style="text-align:center">Check-Out</th><th style="text-align:center">Meal Plan</th><th style="text-align:center">Rooms</th></tr>'
       +hotelRows
       +'</table>'
       :'')
@@ -4621,29 +4624,30 @@ function removeHotelRow(b,idx){
 function addVehicleRow(b){b.vehicles.push(emV());}
 function removeVehicleRow(b,idx){if(b.vehicles.length>1)b.vehicles.splice(idx,1);}
 
-// ── SMART QUOTATION NUMBERING (MH-<Sequence><YY>) ────────────
-// Only the numeric sequence is persisted (LS key 'quotSeq'), never the year —
-// so a year rollover needs no migration: YY is always computed fresh at
-// generation time from the current date, while the sequence keeps counting
-// (…MH-125026 in 2026 -> MH-125127 in 2027, same sequence 1251, new YY).
+// ── QUOTATION NUMBERING (MH-<PlainSequence>, no year embedded) ────────────
+// The full numeric part after "MH-" is treated as one plain integer counter
+// that just increments by 1 every time (…MH-100826 -> MH-100827 -> … ->
+// MH-100899 -> MH-100900, carrying digits exactly like normal addition —
+// no special handling needed since JS integer math already does this).
+// The counter is derived fresh each time as the MAX of (a) the LS-stored
+// counter and (b) the highest MH-<digits> quotNo already present in
+// APP.bookings — so this is self-correcting: even if an old stored counter
+// is stale or in a different format, real booking data always wins and the
+// sequence stays in sync with what's actually been used.
 // Manual edits are handled separately by onManualQuotNoChange (see the
 // Quotation No. field in buildTab) so this module never reads the DOM.
-function currentYY(){ return String(new Date().getFullYear()%100).padStart(2,'0'); }
 function getQuotSeq(){ var s=LS.g('quotSeq'); return (typeof s==='number'&&isFinite(s)&&s>=1000)?s:1000; }
 function setQuotSeq(n){ if(typeof n==='number'&&isFinite(n))LS.s('quotSeq',n); }
-// Recognizes the smart "MH-<seq><YY>" shape: 'MH-' + at least 6 digits (a
-// sequence of >=1001 is 4+ digits, plus exactly 2 digits for YY). The last 2
-// digits are always taken as YY and everything before that as the sequence.
+// Recognizes the "MH-<digits>" shape (any number of digits — no year split).
 // Returns null for anything else (e.g. a custom prefix like "VIP-001"), which
 // callers must treat as "leave the auto sequence alone".
 function parseSmartQuotNo(v){
   if(!v)return null;
-  var m=/^MH-(\d{6,})$/.exec(String(v).trim());
+  var m=/^MH-(\d+)$/.exec(String(v).trim());
   if(!m)return null;
-  var digits=m[1];
-  var seq=parseInt(digits.slice(0,-2),10);
-  if(isNaN(seq))return null;
-  return{seq:seq};
+  var num=parseInt(m[1],10);
+  if(isNaN(num))return null;
+  return{seq:num};
 }
 // Bug fix: a random quotNo can collide with an existing booking's quotNo. Since saveBooking()
 // matches records by quotNo, a collision would silently overwrite a different guest's booking
@@ -4652,16 +4656,21 @@ function parseSmartQuotNo(v){
 // entry elsewhere ever lands exactly on an upcoming auto number).
 function genQuotNo(){
   var existing={};(APP.bookings||[]).forEach(function(b){if(b&&b.quotNo)existing[b.quotNo]=true;});
-  var seq=getQuotSeq();
+  var maxFromBookings=0;
+  (APP.bookings||[]).forEach(function(b){
+    var p=parseSmartQuotNo(b&&b.quotNo);
+    if(p && p.seq>maxFromBookings) maxFromBookings=p.seq;
+  });
+  var seq=Math.max(getQuotSeq(), maxFromBookings);
   var qn;
-  do{ seq++; qn='MH-'+seq+currentYY(); }while(existing[qn]);
+  do{ seq++; qn='MH-'+seq; }while(existing[qn]);
   setQuotSeq(seq);
   return qn;
 }
 // Called when the user manually edits the Quotation No. field (on blur). If it
-// matches the smart MH-<seq><YY> shape, its sequence becomes the new counter
+// matches the "MH-<digits>" shape, that number becomes the new counter
 // baseline, so the *next* auto-generated number continues right after it
-// (e.g. typing "MH-150026" means the next auto number is "MH-150126"). Any
+// (e.g. typing "MH-150000" means the next auto number is "MH-150001"). Any
 // other format (custom prefix, free text) is saved as-is elsewhere and must
 // NOT reach this far affecting the sequence — callers only invoke this when
 // parseSmartQuotNo() already matched.
@@ -6427,7 +6436,14 @@ function buildTab(tab){
           var ic=w.querySelector('span');
           if(ic){ic.style.right='3px';ic.style.fontSize='11px';}
           var hd2=w.querySelector('input[type="date"]');
-          if(hd2){hd2.style.width='18px';}
+          // Widened back from 18px: at 18px the underlying native calendar
+          // icon (which desktop browsers render/require a click on directly,
+          // unlike mobile which treats the whole control as tappable) got
+          // squeezed out, silently breaking the desktop date-picker and
+          // forcing manual typing. 30px restores a desktop-clickable target;
+          // it's still fully invisible (opacity:0) so the narrow visible
+          // text/icon styling above is completely unaffected.
+          if(hd2){hd2.style.width='30px';}
         });
         function validateDates(){
           var invalid=h.checkIn&&h.checkOut&&nts(h.checkIn,h.checkOut)<=0;
