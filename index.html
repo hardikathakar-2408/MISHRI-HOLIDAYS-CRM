@@ -1416,6 +1416,21 @@ function bDash(){
     if(b.dmcBillingAmount){
       dmcHtml='<div style="margin-top:6px;font-size:11px;color:#8A8090">DMC Billing: <span style="font-weight:700;color:#1a1d27">'+fmt(b.dmcBillingAmount)+'</span></div>';
     }
+    // Dashboard — Supplier Payment Ledger summary (additive only). Reuses
+    // getSupplierPaymentSummary(b) for all figures — no duplicate calc logic
+    // here. Only rendered when at least one supplier has been added, so
+    // bookings without any supplier entries look exactly as before. Fully
+    // separate from payHtml (Guest Payment) above — different data source
+    // (b.supplierPayments vs b.paymentHistory), never merged or compared.
+    var supHtml='';
+    if(Array.isArray(b.supplierPayments)&&b.supplierPayments.length){
+      var ssum=getSupplierPaymentSummary(b);
+      var sBalColor=ssum.totalBalance>0?'#C0392B':(ssum.totalBalance<0?'#9B59B6':'#1E8449');
+      supHtml='<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0eee9;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<span class="badge" style="background:#D4A8431e;color:#B8860B">💼 Supplier Cost: '+fmt(ssum.totalNetPayable)+'</span>'
+        +'<span style="font-size:11px;color:#8A8090">Paid: '+fmt(ssum.totalPaid)+' &bull; '+(ssum.totalBalance<0?'Overpaid: ':'Balance: ')+'<span style="color:'+sBalColor+';font-weight:700">'+fmt(Math.abs(ssum.totalBalance))+'</span></span>'
+        +'</div>';
+    }
     card.innerHTML='<div class="row">'
       +'<div style="display:flex;align-items:center;gap:11px;min-width:0">'
       +'<div class="icon-badge" style="background:'+sc2+'1f;color:'+sc2+';font-size:13px;font-weight:800;font-family:Poppins">'+initials+'</div>'
@@ -1428,7 +1443,8 @@ function bDash(){
       +'<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-weight:900;font-size:15px;color:#D4A843">'+fmt(c.grandTotal)+'</div><span class="badge" style="background:'+sc2+'22;color:'+sc2+'">'+b.status+'</span></div>'
       +'</div>'
       +payHtml
-      +dmcHtml;
+      +dmcHtml
+      +supHtml;
     card.addEventListener('click',function(){APP.edit=JSON.parse(JSON.stringify(b));APP.ftab='guest';go('form');});
     attachLongPress(card,b);
     wrap.appendChild(card);});}
@@ -3198,6 +3214,34 @@ function addPaymentEntry(b){
 function removePaymentEntry(b,idx){
   if(Array.isArray(b.paymentHistory)) b.paymentHistory.splice(idx,1);
 }
+// ══════════════════════════════════════════════════════════════
+//  SUPPLIER PAYMENT LEDGER — pure data CRUD, additive only.
+//  Completely separate array/functions from the Guest Payment History
+//  CRUD immediately above (b.paymentHistory / addPaymentEntry /
+//  removePaymentEntry are untouched). Manual entry only — nothing here
+//  is ever auto-calculated from calcOpt()/markup/GST.
+// ══════════════════════════════════════════════════════════════
+function supplierUid(){return 'sup_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);}
+function addSupplierEntry(b){
+  if(!Array.isArray(b.supplierPayments)) b.supplierPayments=[];
+  b.supplierPayments.push({id:supplierUid(),supplierName:'',supplierType:'Hotel',netPayable:0,payments:[]});
+  return b.supplierPayments.length-1;
+}
+function removeSupplierEntry(b,idx){
+  if(Array.isArray(b.supplierPayments)) b.supplierPayments.splice(idx,1);
+}
+function addSupplierPaymentEntry(b,sIdx){
+  if(!Array.isArray(b.supplierPayments)||!b.supplierPayments[sIdx]) return -1;
+  var s=b.supplierPayments[sIdx];
+  if(!Array.isArray(s.payments)) s.payments=[];
+  s.payments.push({amount:0,date:'',mode:'Cash',remarks:''});
+  return s.payments.length-1;
+}
+function removeSupplierPaymentEntry(b,sIdx,pIdx){
+  if(!Array.isArray(b.supplierPayments)||!b.supplierPayments[sIdx]) return;
+  var s=b.supplierPayments[sIdx];
+  if(Array.isArray(s.payments)) s.payments.splice(pIdx,1);
+}
 </script>
 <script>
 // ══════════════════════════════════════════════════════════════
@@ -4070,6 +4114,15 @@ function normalizeBooking(b){
   // there) is left completely untouched — this never overwrites existing
   // payment history.
   if(b.paymentHistory===undefined) b.paymentHistory=[];
+  // Supplier Payment Ledger — additive, manual-entry-only array, completely
+  // separate from the Guest Payment History above. Self-heals ONLY when
+  // missing; any booking that already has a supplierPayments array (however
+  // it got there) is left completely untouched. Each entry is
+  // {id, supplierName, supplierType, netPayable, payments:[{amount,date,mode,remarks}]}.
+  // netPayable is a manual, NET (no-markup) figure — never derived from
+  // calcOpt()/mkPct/mkFixed/gstPct, and never read by any costing, quotation,
+  // voucher, invoice, receipt, or revision logic.
+  if(b.supplierPayments===undefined) b.supplierPayments=[];
   // Booking Reference No. = Quotation No. (merged per user decision — the
   // quotation number is already permanent, unique and collision-checked, so
   // there's no need for a second, manually-typed reference number that could
@@ -4737,6 +4790,11 @@ function newBk(){
     // Nothing reads or writes this array yet outside getPaymentSummary() itself;
     // Confirm tab UI, Invoice, Receipt, Analytics and Sync are all untouched.
     paymentHistory:[],
+    // Supplier Payment Ledger — additive-only: an empty array here means "no
+    // suppliers recorded yet". Completely separate from paymentHistory
+    // (Guest Payment) above — see normalizeBooking() and
+    // getSupplierPaymentSummary() for the read/self-heal logic.
+    supplierPayments:[],
     createdAt:now(),updatedAt:now()
   };
 }
@@ -5815,6 +5873,36 @@ function getPaymentSummary(b){
   return {totalReceived:totalReceived,balance:balance,status:status};
 }
 
+// ══════════════════════════════════════════════════════════════
+//  SUPPLIER PAYMENT LEDGER — summary reader (additive, read-only).
+//  Deliberately does NOT call calcOpt() and does NOT read mkPct/mkFixed/
+//  misc/gstPct/grandTotal anywhere — supplier figures are 100% manual,
+//  NET-of-markup entries, entirely independent of the Guest costing
+//  engine and of getPaymentSummary()/paymentHistory above. Invalid
+//  entries (missing/non-numeric/negative amounts) are silently skipped,
+//  never thrown, mirroring getPaymentSummary()'s defensive style.
+// ══════════════════════════════════════════════════════════════
+function getSupplierPaymentSummary(b){
+  var suppliers=(b&&Array.isArray(b.supplierPayments))?b.supplierPayments:[];
+  var totalNetPayable=0,totalPaid=0;
+  var rows=suppliers.map(function(s){
+    var netPayable=isFinite(parseFloat(s&&s.netPayable))?parseFloat(s.netPayable):0;
+    if(netPayable<0) netPayable=0;
+    var payments=(s&&Array.isArray(s.payments))?s.payments:[];
+    var paid=payments.filter(function(p){
+      return p&&typeof p==='object'&&isFinite(parseFloat(p.amount))&&parseFloat(p.amount)>0;
+    }).reduce(function(sum,p){return sum+parseFloat(p.amount);},0);
+    var balance=Math.round((netPayable-paid)*100)/100;
+    totalNetPayable+=netPayable;
+    totalPaid+=paid;
+    return {id:s&&s.id,supplierName:(s&&s.supplierName)||'',supplierType:(s&&s.supplierType)||'Other',netPayable:netPayable,paid:paid,balance:balance};
+  });
+  totalNetPayable=Math.round(totalNetPayable*100)/100;
+  totalPaid=Math.round(totalPaid*100)/100;
+  var totalBalance=Math.round((totalNetPayable-totalPaid)*100)/100;
+  return {rows:rows,totalNetPayable:totalNetPayable,totalPaid:totalPaid,totalBalance:totalBalance};
+}
+
 // Phase 4 modularization: makeInv() and numToWords() now live in
 // js/documents.js, loaded before this script. No logic changed —
 // see js/documents.js for the extracted code.
@@ -5991,7 +6079,7 @@ function bForm(){
   top.appendChild(ttl);wrap.appendChild(top);
   var card=el('div');card.style.cssText='background:linear-gradient(160deg,rgba(32,35,48,0.72),rgba(22,24,34,0.65));backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-radius:14px;border:1px solid rgba(255,255,255,0.07);overflow:hidden;margin-bottom:12px;box-shadow:0 6px 20px rgba(0,0,0,.22)';
   var tb=el('div');tb.className='tabs';
-  var tabs=[{id:'guest',l:'👤 Guest'},{id:'package',l:'📦 Package'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'dmc',l:'📝 DMC'},{id:'confirm',l:'✅ Confirm'}];
+  var tabs=[{id:'guest',l:'👤 Guest'},{id:'package',l:'📦 Package'},{id:'hotels',l:'🏨 Hotels'},{id:'vehicle',l:'🚗 Vehicle'},{id:'itinerary',l:'📅 Itin.'},{id:'docs',l:'📄 Docs'},{id:'dmc',l:'📝 DMC'},{id:'confirm',l:'✅ Confirm'},{id:'suppliers',l:'💼 Suppliers'}];
   var tbMap={};var tc=el('div');tc.style.padding='12px';
   // Faster navigation / less scrolling: a Prev/Next row at the bottom of each tab's
   // content lets the user move through Guest → Hotels → ... → Confirm with one tap,
@@ -7341,6 +7429,118 @@ function buildTab(tab){
     });
     dmcGenBtn.style.cssText+='width:100%;margin-top:4px';
     frag.appendChild(dmcGenBtn);
+  }
+  // ── Supplier Payment Ledger — additive, fully separate from the Confirm
+  // tab's Guest Payment History above. Reads/writes ONLY b.supplierPayments
+  // via addSupplierEntry/removeSupplierEntry/addSupplierPaymentEntry/
+  // removeSupplierPaymentEntry/getSupplierPaymentSummary — never touches
+  // b.paymentHistory, calcOpt(), mkPct/mkFixed/gstPct, or c.grandTotal.
+  // Manual entry only: netPayable and each payment's amount are plain
+  // number inputs, nothing here is auto-calculated.
+  else if(tab==='suppliers'){
+    frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:4px','💼 Supplier Payment Ledger'));
+    frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:12px','Net supplier cost only — no markup. Fully separate from Guest Payment History above. Manual entry only.'));
+
+    var SUP_TYPE_OPTS=[{v:'Hotel',l:'Hotel'},{v:'Cab Operator',l:'Cab Operator'},{v:'DMC',l:'DMC'},{v:'Other',l:'Other'}];
+    var SUP_MODE_OPTS=[{v:'Cash',l:'Cash'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'UPI',l:'UPI'},{v:'Card',l:'Card'},{v:'Cheque',l:'Cheque'}];
+
+    var supSummaryBox=el('div');supSummaryBox.className='card';supSummaryBox.style.marginBottom='14px';
+    frag.appendChild(supSummaryBox);
+
+    function renderSupSummary(){
+      var sum=getSupplierPaymentSummary(b);
+      var balColor=sum.totalBalance>0?'#C0392B':(sum.totalBalance<0?'#9B59B6':'#1E8449');
+      supSummaryBox.innerHTML=
+        '<div style="font-size:11px;color:#8A8272;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Booking-Level Supplier Totals</div>'
+        +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+        +'<div><div style="font-size:10.5px;color:#8A8272">Net Supplier Cost</div><div style="font-size:18px;font-weight:800;color:#D4A843">'+fmt(sum.totalNetPayable)+'</div></div>'
+        +'<div><div style="font-size:10.5px;color:#8A8272">Total Paid</div><div style="font-size:18px;font-weight:800;color:#1E8449">'+fmt(sum.totalPaid)+'</div></div>'
+        +'<div style="text-align:right"><div style="font-size:10.5px;color:#8A8272">'+(sum.totalBalance<0?'Overpaid By':'Balance Due')+'</div><div style="font-size:18px;font-weight:800;color:'+balColor+'">'+fmt(Math.abs(sum.totalBalance))+'</div></div>'
+        +'</div>';
+    }
+
+    var supList=el('div');
+    frag.appendChild(supList);
+
+    function renderSupList(){
+      supList.innerHTML='';
+      var suppliers=Array.isArray(b.supplierPayments)?b.supplierPayments:[];
+      if(!suppliers.length){
+        supList.appendChild(div('font-size:12px;color:#8A8272;padding:2px 2px 12px;font-style:italic','No suppliers added yet — tap "+ Add Supplier" below.'));
+        return;
+      }
+      suppliers.forEach(function(s,sIdx){
+        var card=el('div');card.className='card';card.style.marginBottom='12px';
+
+        var head=el('div');head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px';
+        var nameWrap=el('div');nameWrap.style.flex='1';
+        nameWrap.appendChild(fld('Supplier Name',inp(s.supplierName,function(v){s.supplierName=v;},'text','e.g. Vintage Manali')));
+        head.appendChild(nameWrap);
+        var delSupBtn=btn('🗑️','btn sm or',function(){
+          confirmDialog('Remove this supplier and all its payment history?',function(){
+            removeSupplierEntry(b,sIdx);renderSupSummary();renderSupList();
+          },'Remove','Cancel');
+        });
+        delSupBtn.style.cssText='padding:8px 11px;min-height:auto;flex-shrink:0;margin-top:18px';
+        head.appendChild(delSupBtn);
+        card.appendChild(head);
+
+        card.appendChild(g2([
+          fld('Supplier Type',sel(s.supplierType||'Hotel',SUP_TYPE_OPTS,function(v){s.supplierType=v;})),
+          fld('Net Payable (Rs., no markup)',inp(s.netPayable,function(v){s.netPayable=parseFloat(v)||0;renderSupSummary();renderBadges();},'number'))
+        ]));
+
+        var badgeWrap=el('div');badgeWrap.style.cssText='display:flex;justify-content:space-between;gap:8px;margin:8px 0;padding-top:8px;border-top:1px solid #2A2D3A;flex-wrap:wrap';
+        card.appendChild(badgeWrap);
+        function renderBadges(){
+          var r=getSupplierPaymentSummary(b).rows[sIdx];
+          if(!r) return;
+          var bc=r.balance>0?'#C0392B':(r.balance<0?'#9B59B6':'#1E8449');
+          badgeWrap.innerHTML=
+            '<span style="font-size:11px;color:#8A8272">Net Payable: <b style="color:#D4A843">'+fmt(r.netPayable)+'</b></span>'
+            +'<span style="font-size:11px;color:#8A8272">Paid: <b style="color:#1E8449">'+fmt(r.paid)+'</b></span>'
+            +'<span style="font-size:11px;color:#8A8272">'+(r.balance<0?'Overpaid':'Balance')+': <b style="color:'+bc+'">'+fmt(Math.abs(r.balance))+'</b></span>';
+        }
+        renderBadges();
+
+        var payList=el('div');
+        (Array.isArray(s.payments)?s.payments:[]).forEach(function(p,pIdx){
+          var pRow=el('div');pRow.style.cssText='background:#1A1D27;border:1px solid #2A2D3A;border-radius:8px;padding:10px;margin-bottom:8px';
+          pRow.appendChild(g2([
+            fld('Amount (Rs.)',inp(p.amount,function(v){p.amount=parseFloat(v)||0;renderSupSummary();renderBadges();},'number')),
+            fld('Date',paymentDateInp(p.date,function(v){p.date=v;}))
+          ],'pay-row'));
+          pRow.appendChild(g2([
+            fld('Payment Mode',sel(p.mode||'Cash',SUP_MODE_OPTS,function(v){p.mode=v;})),
+            fld('Remarks (optional)',inp(p.remarks,function(v){p.remarks=v;},'text','e.g. Advance, Final'))
+          ]));
+          var delPayBtn=btn('🗑️ Delete Payment','btn sm or',function(){
+            removeSupplierPaymentEntry(b,sIdx,pIdx);renderSupSummary();renderSupList();
+          });
+          delPayBtn.style.cssText='margin-top:2px';
+          pRow.appendChild(delPayBtn);
+          payList.appendChild(pRow);
+        });
+        if(!(Array.isArray(s.payments)&&s.payments.length)){
+          payList.appendChild(div('font-size:11.5px;color:#8A8272;font-style:italic;padding:2px 2px 8px','No payments recorded yet.'));
+        }
+        card.appendChild(payList);
+
+        var addPayBtn=btn('+ Add Payment','btn sm ob',function(){
+          addSupplierPaymentEntry(b,sIdx);renderSupList();renderSupSummary();
+        });
+        card.appendChild(addPayBtn);
+
+        supList.appendChild(card);
+      });
+    }
+
+    renderSupSummary();
+    renderSupList();
+
+    frag.appendChild(btn('+ Add Supplier','btn sm gn',function(){
+      addSupplierEntry(b);renderSupList();renderSupSummary();
+    }));
   }
   return frag;
 }
