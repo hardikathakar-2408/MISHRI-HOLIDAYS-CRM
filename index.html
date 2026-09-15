@@ -876,6 +876,7 @@ details summary::-webkit-details-marker{color:#D4A843}
       <button class="btn sm" id="installBtn" style="display:none;background:linear-gradient(135deg,#BB79D6,#9B59B6);color:#fff;border-color:transparent" onclick="installApp()">📲 Install</button>
       <button class="btn sm" id="mAuthAcctBtn" title="Account">🔒</button>
       <button class="btn sm" id="analyticsBtn" title="Business Analytics">📈</button>
+      <button class="btn sm" id="supplierDuesBtn" title="Supplier Dues Report">💼</button>
       <button class="btn bg sm" id="hdrNew">+ New</button>
     </div>
   </div>
@@ -1548,6 +1549,88 @@ function bAnalytics(){
     });
   }
   renderCards();
+  return wrap;
+}
+// ══════════════════════════════════════════════════════════════
+//  SUPPLIER DUES REPORT — cross-booking aggregation (additive, read-only).
+//  Reads getSupplierPaymentSummary(b) for every booking in APP.bookings and
+//  groups by supplier name+type. Never writes to any booking, never calls
+//  calcOpt(), never touches Analytics/Dashboard/costing logic above.
+// ══════════════════════════════════════════════════════════════
+function computeGlobalSupplierDues(bookings){
+  var map={};
+  (Array.isArray(bookings)?bookings:[]).forEach(function(b){
+    var sum=getSupplierPaymentSummary(b);
+    sum.rows.forEach(function(r){
+      if(!r.supplierName) return;
+      var key=r.supplierName.trim().toLowerCase()+'|'+(r.supplierType||'Other');
+      if(!map[key]) map[key]={supplierName:r.supplierName.trim(),supplierType:r.supplierType||'Other',netPayable:0,paid:0,balance:0,bookings:[]};
+      map[key].netPayable+=r.netPayable;
+      map[key].paid+=r.paid;
+      map[key].balance+=r.balance;
+      map[key].bookings.push({quotNo:b.quotNo||'',guestName:b.guestName||'',netPayable:r.netPayable,paid:r.paid,balance:r.balance});
+    });
+  });
+  var list=Object.keys(map).map(function(k){
+    var g=map[k];
+    g.netPayable=Math.round(g.netPayable*100)/100;
+    g.paid=Math.round(g.paid*100)/100;
+    g.balance=Math.round(g.balance*100)/100;
+    return g;
+  });
+  list.sort(function(a,b){return b.balance-a.balance;}); // highest balance due first
+  return list;
+}
+function bSupplierDues(){
+  var wrap=el('div');
+  wrap.appendChild(div('','<div class="h1">💼 Supplier Dues Report</div><div style="font-size:12px;color:#8A8090;margin-top:2px;margin-bottom:16px">Outstanding supplier balances across ALL bookings — highest due first. Read-only; edit payments inside each booking\u2019s Suppliers tab.</div>'));
+
+  var groups=computeGlobalSupplierDues(APP.bookings||[]);
+  var grandNet=0,grandPaid=0,grandBal=0;
+  groups.forEach(function(g){grandNet+=g.netPayable;grandPaid+=g.paid;grandBal+=g.balance;});
+  grandNet=Math.round(grandNet*100)/100;grandPaid=Math.round(grandPaid*100)/100;grandBal=Math.round(grandBal*100)/100;
+
+  var summaryCard=el('div');summaryCard.className='card';summaryCard.style.marginBottom='16px';
+  var balColor=grandBal>0?'#C0392B':(grandBal<0?'#9B59B6':'#1E8449');
+  summaryCard.innerHTML='<div style="font-size:11px;color:#8A8090;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">All Bookings Combined</div>'
+    +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+    +'<div><div style="font-size:10.5px;color:#8A8090">Total Net Cost</div><div style="font-size:18px;font-weight:800;color:#D4A843">'+fmt(grandNet)+'</div></div>'
+    +'<div><div style="font-size:10.5px;color:#8A8090">Total Paid</div><div style="font-size:18px;font-weight:800;color:#1E8449">'+fmt(grandPaid)+'</div></div>'
+    +'<div style="text-align:right"><div style="font-size:10.5px;color:#8A8090">'+(grandBal<0?'Overpaid By':'Balance Due')+'</div><div style="font-size:18px;font-weight:800;color:'+balColor+'">'+fmt(Math.abs(grandBal))+'</div></div>'
+    +'</div>';
+  wrap.appendChild(summaryCard);
+
+  if(!groups.length){
+    wrap.appendChild(div('font-size:12px;color:#8A8090;font-style:italic;padding:8px 2px','No supplier payment data recorded yet in any booking.'));
+    return wrap;
+  }
+
+  groups.forEach(function(g){
+    var card=el('div');card.className='card';card.style.marginBottom='12px';
+    var bc=g.balance>0?'#C0392B':(g.balance<0?'#9B59B6':'#1E8449');
+    var head=el('div');
+    head.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px">'
+      +'<div style="font-weight:700;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+g.supplierName+'</div>'
+      +'<span class="badge" style="background:#8A80901f;color:#8A8090;flex-shrink:0">'+g.supplierType+'</span>'
+      +'</div>'
+      +'<div style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:6px;flex-wrap:wrap;gap:6px">'
+      +'<span style="font-size:11px;color:#8A8090">Net: <b style="color:#D4A843">'+fmt(g.netPayable)+'</b></span>'
+      +'<span style="font-size:11px;color:#8A8090">Paid: <b style="color:#1E8449">'+fmt(g.paid)+'</b></span>'
+      +'<span style="font-size:11px;color:#8A8090">'+(g.balance<0?'Overpaid':'Balance')+': <b style="color:'+bc+'">'+fmt(Math.abs(g.balance))+'</b></span>'
+      +'</div>';
+    card.appendChild(head);
+
+    var listWrap=el('div');listWrap.style.cssText='margin-top:8px;padding-top:8px;border-top:1px dashed #eee';
+    g.bookings.forEach(function(bk){
+      var bbc=bk.balance>0?'#C0392B':(bk.balance<0?'#9B59B6':'#1E8449');
+      var row=el('div');row.style.cssText='display:flex;justify-content:space-between;font-size:11px;color:#8A8090;padding:3px 0;gap:8px';
+      row.innerHTML='<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(bk.guestName||'\u2014')+' ('+(bk.quotNo||'\u2014')+')</span><span style="color:'+bbc+';font-weight:700;flex-shrink:0">'+fmt(Math.abs(bk.balance))+(bk.balance<0?' over':'')+'</span>';
+      listWrap.appendChild(row);
+    });
+    card.appendChild(listWrap);
+    wrap.appendChild(card);
+  });
+
   return wrap;
 }
 </script>
@@ -3242,6 +3325,88 @@ function removeSupplierPaymentEntry(b,sIdx,pIdx){
   var s=b.supplierPayments[sIdx];
   if(Array.isArray(s.payments)) s.payments.splice(pIdx,1);
 }
+// ══════════════════════════════════════════════════════════════
+//  SUPPLIER AUTO-FILL — reads the SELECTED option's Hotels rows,
+//  Vehicle tab, and DMC Billing Amount to pre-fill Net Payable only.
+//  Strictly READ-ONLY against getOptFields()/b.vehicles/
+//  b.dmcBillingAmount — never calls calcOpt(), never writes back to the
+//  Hotels/Vehicle/DMC tabs or Hotel Rate Master. Paid/payment history is
+//  never touched by any function here — only netPayable is ever set.
+//  Duplicate matching (by supplierName+supplierType) is scoped to THIS
+//  booking's own b.supplierPayments array only — no cross-booking checks.
+// ══════════════════════════════════════════════════════════════
+function computeHotelSupplierTotals(b){
+  var idx=(b&&b.selectedOption)||1;
+  var hotels=(getOptFields(b,idx)&&getOptFields(b,idx).hotels)||[];
+  var totals={},order=[];
+  hotels.forEach(function(h){
+    if(!h||!h.hotelName||!h.checkIn||!h.checkOut) return;
+    var n=nts(h.checkIn,h.checkOut);
+    var cost=n*(parseInt(h.rooms)||1)*(parseFloat(h.ratePerRoom)||0)
+      +n*(parseInt(h.extraAdults)||0)*(parseFloat(h.extraAdultRate)||0)
+      +n*(parseInt(h.chargeableChild)||0)*(parseFloat(h.childRate)||0)
+      +n*(parseInt(h.childNoBed)||0)*(parseFloat(h.childNoBedRate)||0);
+    var key=h.hotelName.trim();
+    if(!key) return;
+    if(totals[key]===undefined){totals[key]=0;order.push(key);}
+    totals[key]+=cost;
+  });
+  return order.map(function(name){return {supplierName:name,supplierType:'Hotel',netPayable:Math.round(totals[name]*100)/100};});
+}
+function computeVehicleSupplierTotals(b){
+  var list=[];
+  (Array.isArray(b.vehicles)?b.vehicles:[]).forEach(function(v){
+    var cost=parseFloat(v&&v.cost)||0;
+    if(cost<=0) return;
+    var name=((v.type||'Cab Operator')+(v.vehicleNo?(' ('+v.vehicleNo+')'):'')).trim();
+    list.push({supplierName:name,supplierType:'Cab Operator',netPayable:Math.round(cost*100)/100});
+  });
+  return list;
+}
+function computeDmcSupplierEntry(b){
+  var amt=parseFloat(b&&b.dmcBillingAmount)||0;
+  if(amt<=0) return null;
+  return {supplierName:'DMC',supplierType:'DMC',netPayable:Math.round(amt*100)/100};
+}
+function getSupplierAutoFillCandidates(b){
+  var list=[].concat(computeHotelSupplierTotals(b),computeVehicleSupplierTotals(b));
+  var dmc=computeDmcSupplierEntry(b);
+  if(dmc) list.push(dmc);
+  return list;
+}
+function applySupplierAutoFill(b){
+  if(!Array.isArray(b.supplierPayments)) b.supplierPayments=[];
+  var candidates=getSupplierAutoFillCandidates(b);
+  var added=0,updated=0;
+  candidates.forEach(function(c){
+    var existing=b.supplierPayments.filter(function(s){
+      return s&&(s.supplierName||'').trim().toLowerCase()===c.supplierName.trim().toLowerCase()&&s.supplierType===c.supplierType;
+    })[0];
+    if(existing){ existing.netPayable=c.netPayable; updated++; }
+    else{ b.supplierPayments.push({id:supplierUid(),supplierName:c.supplierName,supplierType:c.supplierType,netPayable:c.netPayable,payments:[]}); added++; }
+  });
+  return {added:added,updated:updated,total:candidates.length};
+}
+// Overwrite-protection preview — computes what applySupplierAutoFill() WOULD
+// change, without changing anything, so the caller can confirm before an
+// existing (possibly manually-edited) Net Payable gets silently overwritten.
+// Read-only; payments[] (paid history) is never part of this diff since
+// Auto-Fill never touches it.
+function getSupplierAutoFillDiff(b){
+  var supplierList=Array.isArray(b.supplierPayments)?b.supplierPayments:[];
+  var candidates=getSupplierAutoFillCandidates(b);
+  var changes=[],newCount=0,unchangedCount=0;
+  candidates.forEach(function(c){
+    var existing=supplierList.filter(function(s){
+      return s&&(s.supplierName||'').trim().toLowerCase()===c.supplierName.trim().toLowerCase()&&s.supplierType===c.supplierType;
+    })[0];
+    if(!existing){ newCount++; return; }
+    var oldVal=Math.round((parseFloat(existing.netPayable)||0)*100)/100;
+    if(oldVal!==c.netPayable){ changes.push({supplierName:c.supplierName,supplierType:c.supplierType,oldValue:oldVal,newValue:c.netPayable}); }
+    else unchangedCount++;
+  });
+  return {changes:changes,newCount:newCount,unchangedCount:unchangedCount,total:candidates.length};
+}
 </script>
 <script>
 // ══════════════════════════════════════════════════════════════
@@ -3832,6 +3997,48 @@ function addTombstone(quotNo){
   LS.s('deletedTombstones',list);
 }
 function clearTombstones(){ LS.s('deletedTombstones',[]); }
+function removeTombstone(quotNo){
+  var list=getTombstones().filter(function(t){return t.quotNo!==quotNo;});
+  LS.s('deletedTombstones',list);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  RECYCLE BIN — client-side-only soft-delete, 30-day retention.
+//  Does NOT change deleteBooking()/saveBooking()/tombstone/sync logic
+//  at all — it only wraps them: a full copy is stashed into
+//  'trashedBookings' (localStorage/IndexedDB, this device only) BEFORE
+//  the existing deleteBooking() runs unchanged, and restoring simply
+//  calls the existing saveBooking() to re-upsert it normally.
+// ══════════════════════════════════════════════════════════════
+function getTrashedBookings(){ return LS.g('trashedBookings')||[]; }
+var TRASH_RETENTION_DAYS=30;
+function purgeExpiredTrash(){
+  var cutoff=Date.now()-TRASH_RETENTION_DAYS*86400000;
+  var all=getTrashedBookings();
+  var kept=all.filter(function(t){
+    var d=new Date(t.deletedAt).getTime();
+    return isNaN(d)?true:d>=cutoff; // an unparsable date is kept rather than silently lost
+  });
+  if(kept.length!==all.length) LS.s('trashedBookings',kept);
+  return kept;
+}
+function moveBookingToTrash(qn){
+  var bk=(APP.bookings||[]).filter(function(b){return b.quotNo===qn;})[0];
+  if(bk){
+    var trash=getTrashedBookings().filter(function(t){return t.quotNo!==qn;}); // de-dupe safety
+    trash.unshift({quotNo:qn,deletedAt:now(),booking:JSON.parse(JSON.stringify(bk))});
+    LS.s('trashedBookings',trash);
+  }
+  deleteBooking(qn); // existing function, completely unchanged
+}
+function restoreBookingFromTrash(qn){
+  var trash=getTrashedBookings();
+  var entry=trash.filter(function(t){return t.quotNo===qn;})[0];
+  if(!entry) return Promise.resolve(false);
+  LS.s('trashedBookings',trash.filter(function(t){return t.quotNo!==qn;}));
+  removeTombstone(qn); // so the next sync doesn't re-delete what we just restored
+  return saveBooking(entry.booking).then(function(){return true;});
+}
 
 // ── TEMPLATE SYNC TOMBSTONES (Package Master + Itinerary Templates) ─────
 // Parallel implementation of the exact same {id/quotNo, deletedAt} tombstone
@@ -5506,8 +5713,8 @@ function openQuickActionMenu(bk){
   });
   item('📋','Duplicate Booking',false,function(){ duplicateBooking(bk); });
   item('🗑','Delete Booking',true,function(){
-    confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? This cannot be undone.',function(){
-      deleteBooking(bk.quotNo);go('list');
+    confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? It moves to Recently Deleted (Sync page) for 30 days, then is removed permanently.',function(){
+      moveBookingToTrash(bk.quotNo);go('list');
     });
   });
   var cancel=el('div');
@@ -5612,6 +5819,13 @@ function go(page,skipFetch){
   else if(page==='pkgTpl'){ loadPkgTemplates(); c.appendChild(bPkgTemplates()); }
   else if(page==='sync') c.appendChild(bSyncPage());
   else if(page==='analytics'){ if(skipFetch){c.innerHTML='';c.appendChild(bAnalytics());} else{ showLoading(c); loadBookings().then(function(){c.innerHTML='';c.appendChild(bAnalytics());}); } }
+  // Supplier Dues Report — additive page, read-only. Aggregates
+  // b.supplierPayments across ALL bookings via computeGlobalSupplierDues();
+  // never writes to any booking, never touches calcOpt() or existing
+  // Analytics/Dashboard logic.
+  else if(page==='supplierDues'){ if(skipFetch){c.innerHTML='';c.appendChild(bSupplierDues());} else{ showLoading(c); loadBookings().then(function(){c.innerHTML='';c.appendChild(bSupplierDues());}); } }
+  // Recycle Bin — local-only, instant (no server fetch needed).
+  else if(page==='trash'){ c.appendChild(bTrashPage()); }
 }
 // ui-utils modularization: showLoading() now lives in js/ui-utils.js,
 // loaded before this script. No logic changed — see js/ui-utils.js
@@ -5620,6 +5834,7 @@ function go(page,skipFetch){
 document.querySelectorAll('.ni').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.p);});});
 document.getElementById('hdrNew').addEventListener('click',function(){APP.edit=newBk();APP.ftab='guest';go('form');});
 document.getElementById('analyticsBtn').addEventListener('click',function(){go('analytics');});
+document.getElementById('supplierDuesBtn').addEventListener('click',function(){go('supplierDues');});
 
 // ── Mobile Floating Action Bar (booking open) ──────────────────────────
 // Every handler below reuses an existing function/button — nothing here
@@ -5984,8 +6199,8 @@ function bList(){
         withTooltip(br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf');})),'Generate Receipt');
         withTooltip(br.appendChild(btn('Edit','btn sm bg',function(){APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';go('form');})),'Edit Booking');
         withTooltip(br.appendChild(btn('✕','btn sm or',function(){
-          confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? This cannot be undone.',function(){
-            deleteBooking(bk.quotNo);go('list');
+          confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? It moves to Recently Deleted (Sync page) for 30 days, then is removed permanently.',function(){
+            moveBookingToTrash(bk.quotNo);go('list');
           });
         })),'Delete Booking');
       })(b);
@@ -7441,6 +7656,32 @@ function buildTab(tab){
     frag.appendChild(div('font-size:13px;font-weight:700;color:#D4A843;margin-bottom:4px','💼 Supplier Payment Ledger'));
     frag.appendChild(div('font-size:11px;color:#8A8272;margin-bottom:12px','Net supplier cost only — no markup. Fully separate from Guest Payment History above. Manual entry only.'));
 
+    // Auto-Fill: pulls Net Payable ONLY (never Paid/payment history) from the
+    // currently SELECTED option's Hotels rows + Vehicle tab + DMC Billing
+    // Amount. Read-only against those tabs — never writes back to them.
+    var autoFillBtn=btn('⚡ Auto-Fill from Booking (Option '+((b.selectedOption||1))+')','btn sm ob',function(){
+      var diff=getSupplierAutoFillDiff(b);
+      if(diff.total===0){
+        toast('No hotel/vehicle/DMC cost found on the selected option yet',false);
+        return;
+      }
+      function doApply(){
+        var result=applySupplierAutoFill(b);
+        toast('Auto-Fill: '+result.added+' added, '+result.updated+' updated (Net Payable only)',true);
+        renderSupList();renderSupSummary();
+      }
+      if(diff.changes.length>0){
+        var msg='Auto-Fill will overwrite Net Payable for: '+diff.changes.map(function(c){return c.supplierName;}).join(', ')+'.'
+          +(diff.newCount?' Also adds '+diff.newCount+' new supplier(s).':'')
+          +' Existing paid/payment history is never affected. Continue?';
+        confirmDialog(msg,doApply,'Overwrite','Cancel');
+      } else {
+        doApply();
+      }
+    });
+    autoFillBtn.style.cssText+='width:100%;margin-bottom:12px';
+    frag.appendChild(autoFillBtn);
+
     var SUP_TYPE_OPTS=[{v:'Hotel',l:'Hotel'},{v:'Cab Operator',l:'Cab Operator'},{v:'DMC',l:'DMC'},{v:'Other',l:'Other'}];
     var SUP_MODE_OPTS=[{v:'Cash',l:'Cash'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'UPI',l:'UPI'},{v:'Card',l:'Card'},{v:'Cheque',l:'Cheque'}];
 
@@ -8323,6 +8564,15 @@ function bSyncPage(){
   xCard.appendChild(impSec);
   wrap.appendChild(xCard);
 
+  // Recycle Bin — additive card. Purely reads getTrashedBookings(); does not
+  // touch Manual Transfer/Sync/Storage cards above or below.
+  var trashCount=purgeExpiredTrash().length;
+  var tCard=el('div');tCard.className='card';tCard.style.cssText='margin-bottom:12px;border:1.5px solid #E74C3C44';
+  tCard.appendChild(div('font-size:14px;font-weight:700;color:#E74C3C;margin-bottom:4px','🗑️ Recently Deleted'+(trashCount?' ('+trashCount+')':'')));
+  tCard.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:10px','Deleted bookings stay here for 30 days on this device before being removed permanently.'));
+  tCard.appendChild(btn('View Recently Deleted','btn sm or',function(){go('trash');}));
+  wrap.appendChild(tCard);
+
   // How data works
   var hCard=el('div');hCard.className='card';
   hCard.appendChild(div('font-size:14px;font-weight:700;color:#D4A843;margin-bottom:10px','💾 Data Storage'));
@@ -8333,6 +8583,60 @@ function bSyncPage(){
     +'<div style="padding:10px 12px"><div style="font-size:12px;font-weight:700;color:#E8E0D0;margin-bottom:3px">🔄 When WiFi connects</div><div style="font-size:11px;color:#8A8090">Auto-merge — newer record wins — both synced</div><div style="font-size:11px;color:#2ECC71">✅ No data lost from either device</div></div>'
     +'</div>';
   wrap.appendChild(hCard);
+  return wrap;
+}
+// ══════════════════════════════════════════════════════════════
+//  RECYCLE BIN SCREEN — lists getTrashedBookings(), lets the user
+//  Restore (via restoreBookingFromTrash -> saveBooking) or permanently
+//  delete a trash entry. Read/writes ONLY the 'trashedBookings' local
+//  list — never touches APP.bookings directly except through the
+//  existing saveBooking() call inside restoreBookingFromTrash().
+// ══════════════════════════════════════════════════════════════
+function bTrashPage(){
+  var wrap=el('div');
+  wrap.appendChild(btn('← Back to Sync','btn sm',function(){go('sync');}));
+  wrap.appendChild(div('font-size:18px;font-weight:800;color:#D4A843;margin:12px 0 4px','🗑️ Recently Deleted'));
+  wrap.appendChild(div('font-size:11px;color:#8A8090;margin-bottom:14px','Kept on this device for 30 days, then removed permanently. Restoring saves the booking normally — it will sync to the server like any save.'));
+
+  var listWrap=el('div');
+  wrap.appendChild(listWrap);
+
+  function render(){
+    listWrap.innerHTML='';
+    var trash=purgeExpiredTrash();
+    if(!trash.length){
+      listWrap.appendChild(div('font-size:12px;color:#8A8090;font-style:italic;padding:8px 2px','Trash is empty.'));
+      return;
+    }
+    trash.forEach(function(t){
+      var bk=t.booking||{};
+      var daysLeft=Math.max(0,TRASH_RETENTION_DAYS-Math.floor((Date.now()-new Date(t.deletedAt).getTime())/86400000));
+      var card=el('div');card.className='card';card.style.marginBottom='10px';
+      card.innerHTML='<div style="min-width:0"><div style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(bk.guestName||'—')+'</div>'
+        +'<div style="font-size:11px;color:#8A8090">'+(bk.quotNo||t.quotNo||'—')+' • Deleted '+fmtD(t.deletedAt)+' • '+daysLeft+' days left</div></div>';
+      var btnRow=el('div');btnRow.style.cssText='display:flex;gap:8px;margin-top:10px';
+      var restoreBtn=btn('↩️ Restore','btn sm gn',function(){
+        restoreBtn.disabled=true;
+        restoreBookingFromTrash(t.quotNo).then(function(ok){
+          if(ok){ toast('Booking restored'); render(); }
+          else { toast('Could not restore',false); restoreBtn.disabled=false; }
+        });
+      });
+      restoreBtn.style.flex='1';
+      var purgeBtn=btn('Delete Forever','btn sm or',function(){
+        confirmDialog('Permanently delete "'+(bk.guestName||t.quotNo)+'" from Trash? This cannot be undone.',function(){
+          LS.s('trashedBookings',getTrashedBookings().filter(function(x){return x.quotNo!==t.quotNo;}));
+          toast('Permanently deleted');
+          render();
+        },'Delete Forever','Cancel');
+      });
+      purgeBtn.style.flex='1';
+      btnRow.appendChild(restoreBtn);btnRow.appendChild(purgeBtn);
+      card.appendChild(btnRow);
+      listWrap.appendChild(card);
+    });
+  }
+  render();
   return wrap;
 }
 
