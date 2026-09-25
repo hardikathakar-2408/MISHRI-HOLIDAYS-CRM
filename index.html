@@ -1683,7 +1683,7 @@ function bSupplierDues(){
 //  globals across files — the same pattern as calcOpt()/nts()/fmt()
 //  in Phases 2 and 3.
 // ══════════════════════════════════════════════════════════════
-function openPrint(html,filename){
+function openPrint(html,filename,shareInfo){
   filename=filename||'Mishri_Document';
   var baseName=filename.replace('.pdf','').replace('.html','');
 
@@ -1759,6 +1759,36 @@ function openPrint(html,filename){
   });
 
   btnRow.appendChild(dlBtn);
+
+  // ── WhatsApp Share button (Level 1: reuses the SAME native Save-PDF
+  // pipeline above — no PDF blob/canvas involved, so none of the
+  // dark-background/blank-PDF/incomplete-content bugs that native print
+  // was specifically adopted to avoid can resurface here). Only appears
+  // when the caller passes shareInfo — every existing openPrint() call
+  // site that doesn't pass it keeps working exactly as before, unchanged.
+  // Flow: tap once -> triggers the same "Save PDF" print dialog -> once
+  // the user closes it (having saved or not), a WhatsApp chat opens with
+  // a pre-filled message asking them to attach the file they just saved.
+  // This is a manual attach (1-2 extra taps), by design — it deliberately
+  // does NOT try to auto-attach a file, since that would require a real
+  // PDF Blob/Web Share API path that this app moved away from for
+  // reliability reasons (see the "Save PDF" button comment above).
+  if(shareInfo && shareInfo.contact){
+    var waBtn=document.createElement('button');
+    waBtn.style.cssText='border-radius:16px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;background:#25D366;color:#fff;border:1.5px solid #25D366';
+    waBtn.textContent='📤 WhatsApp';
+    waBtn.addEventListener('click',function(){
+      var msg='Hi '+(shareInfo.guestName||'')+', please find your '+(shareInfo.docType||'document')+' below. \n\n(We just opened the Save dialog for you — please tap the 📎 attach icon here in WhatsApp and select the PDF you saved from your Downloads/Files, then hit send.)\n\n— Mishri Holidays';
+      var phone=(shareInfo.contact||'').replace(/[^0-9]/g,'');
+      var url=phone?('https://wa.me/'+phone+'?text='+encodeURIComponent(msg)):('https://wa.me/?text='+encodeURIComponent(msg));
+      // Defensive: some sandboxed preview environments (not the real deployed
+      // site) restrict iframe.contentWindow.print(). If that throws for any
+      // reason, WhatsApp should still open — this never should block sharing.
+      try{ dlBtn.click(); }catch(e){ console.error('Save PDF trigger failed:',e); }
+      setTimeout(function(){ window.open(url,'_blank'); },400);
+    });
+    btnRow.appendChild(waBtn);
+  }
   topBar.appendChild(backBtn);
   topBar.appendChild(titleEl);
   topBar.appendChild(btnRow);
@@ -5700,9 +5730,9 @@ function openQuickActionMenu(bk){
     sheet.appendChild(d);
   }
   item('📄','Generate Quotation',false,function(){ fastQuot(bk); });
-  item('🎫','Generate Voucher',false,function(){ openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf'); });
-  item('🧾','Generate Invoice',false,function(){ openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf'); });
-  item('🧾','Generate Receipt',false,function(){ openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf'); });
+  item('🎫','Generate Voucher',false,function(){ openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Voucher'}); });
+  item('🧾','Generate Invoice',false,function(){ openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Invoice'}); });
+  item('🧾','Generate Receipt',false,function(){ openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Receipt'}); });
   item('📞','Call Customer',false,function(){
     if(!bk.contact){ toast('No contact number saved for this guest',false); return; }
     location.href='tel:'+bk.contact.replace(/[^0-9+]/g,'');
@@ -5850,7 +5880,7 @@ document.getElementById('fabQuot').addEventListener('click',function(){
 });
 document.getElementById('fabVouch').addEventListener('click',function(){
   var bk=APP.edit; if(!bk) return;
-  openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');
+  openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Voucher'});
 });
 document.getElementById('fabAddOpt').addEventListener('click',function(){
   // Jumps straight to the Hotels tab (where Option 1/2/3 pricing is added/
@@ -6015,10 +6045,10 @@ function fastQuot(bk){
   if(!bk) return;
   var filled=getFilledOptions(bk);
   if(filled.length>1){
-    openPrint(makeMultiQuot(bk,filled),pdfFileName(bk.guestName,'Quotation')+'.pdf');
+    openPrint(makeMultiQuot(bk,filled),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});
   } else {
     var on=filled.length===1?filled[0]:(bk.selectedOption||1);
-    openPrint(makeQuot(bk,on),pdfFileName(bk.guestName,'Quotation')+'.pdf');
+    openPrint(makeQuot(bk,on),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});
   }
 }
 
@@ -6194,9 +6224,9 @@ function bList(){
       var br=card.querySelector('div:last-child');
       (function(bk){
         withTooltip(br.appendChild(btn('📄','btn sm ob',function(){fastQuot(bk);})),'Generate Quotation');
-        withTooltip(br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');})),'Generate Voucher');
-        withTooltip(br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf');})),'Generate Invoice');
-        withTooltip(br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf');})),'Generate Receipt');
+        withTooltip(br.appendChild(btn('🎫','btn sm og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Voucher'});})),'Generate Voucher');
+        withTooltip(br.appendChild(btn('🧾','btn sm pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Invoice'});})),'Generate Invoice');
+        withTooltip(br.appendChild(btn('💵','btn sm og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Receipt'});})),'Generate Receipt');
         withTooltip(br.appendChild(btn('Edit','btn sm bg',function(){APP.edit=JSON.parse(JSON.stringify(bk));APP.ftab='guest';go('form');})),'Edit Booking');
         withTooltip(br.appendChild(btn('✕','btn sm or',function(){
           confirmDialog('Delete booking for "'+(bk.guestName||bk.quotNo)+'"? It moves to Recently Deleted (Sync page) for 30 days, then is removed permanently.',function(){
@@ -7301,7 +7331,7 @@ function buildTab(tab){
           row.appendChild(info);
           var actions=el('div');actions.style.cssText='display:flex;gap:6px;flex-shrink:0';
           var rctBtn=withTooltip(btn('🧾','btn sm og',function(){
-            openPrint(makeReceipt(b,idx),pdfFileName(b.guestName,'Receipt-Payment'+(idx+1))+'.pdf');
+            openPrint(makeReceipt(b,idx),pdfFileName(b.guestName,'Receipt-Payment'+(idx+1))+'.pdf',{contact:b.contact,guestName:b.guestName,docType:'Payment Receipt'});
           }),'Generate Receipt for this payment');
           rctBtn.style.cssText='padding:8px 11px;min-height:auto';
           var editBtn=btn('✏️','btn sm bm',function(){APP.editingPaymentIdx=idx;rerenderConfirmTab();});
@@ -7333,7 +7363,7 @@ function buildTab(tab){
     vBtn.addEventListener('click',function(){
       var orig=vBtn.textContent;vBtn.disabled=true;vBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeVouch(APP.edit),pdfFileName(APP.edit.guestName,'Voucher')+'.pdf');
+        openPrint(makeVouch(APP.edit),pdfFileName(APP.edit.guestName,'Voucher')+'.pdf',{contact:APP.edit.contact,guestName:APP.edit.guestName,docType:'Voucher'});
       }).then(function(){vBtn.disabled=false;vBtn.textContent=orig;}).catch(function(err){
         vBtn.disabled=false;vBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -7346,7 +7376,7 @@ function buildTab(tab){
     invBtn.addEventListener('click',function(){
       var orig=invBtn.textContent;invBtn.disabled=true;invBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeInv(APP.edit),pdfFileName(APP.edit.guestName,'Invoice')+'.pdf');
+        openPrint(makeInv(APP.edit),pdfFileName(APP.edit.guestName,'Invoice')+'.pdf',{contact:APP.edit.contact,guestName:APP.edit.guestName,docType:'Invoice'});
       }).then(function(){invBtn.disabled=false;invBtn.textContent=orig;}).catch(function(err){
         invBtn.disabled=false;invBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -7360,7 +7390,7 @@ function buildTab(tab){
     rctBtn.addEventListener('click',function(){
       var orig=rctBtn.textContent;rctBtn.disabled=true;rctBtn.textContent='⏳ Please wait...';
       withTimeout(saveBooking(APP.edit),15000,'Save').then(function(){
-        openPrint(makeReceipt(APP.edit),pdfFileName(APP.edit.guestName,'Receipt')+'.pdf');
+        openPrint(makeReceipt(APP.edit),pdfFileName(APP.edit.guestName,'Receipt')+'.pdf',{contact:APP.edit.contact,guestName:APP.edit.guestName,docType:'Receipt'});
       }).then(function(){rctBtn.disabled=false;rctBtn.textContent=orig;}).catch(function(err){
         rctBtn.disabled=false;rctBtn.textContent=orig;
         if(err&&/timed out/.test(err.message)) toast('Taking too long — data is saved locally, try again',false);
@@ -7474,20 +7504,20 @@ function buildTab(tab){
       }
       // Single option quotations
       dw.appendChild(dlbl('Single Option:'));
-      dw.appendChild(dbtn('📄 Option 1','btn gn',function(){openPrint(makeQuot(bk,1),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
-      dw.appendChild(dbtn('📄 Option 2','btn bn',function(){openPrint(makeQuot(bk,2),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
-      dw.appendChild(dbtn('📄 Option 3','btn o2',function(){openPrint(makeQuot(bk,3),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Option 1','btn gn',function(){openPrint(makeQuot(bk,1),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
+      dw.appendChild(dbtn('📄 Option 2','btn bn',function(){openPrint(makeQuot(bk,2),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
+      dw.appendChild(dbtn('📄 Option 3','btn o2',function(){openPrint(makeQuot(bk,3),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
       // Multi option quotations
       dw.appendChild(dlbl('Multiple Options (one PDF):'));
-      dw.appendChild(dbtn('📄 Opt 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
-      dw.appendChild(dbtn('📄 Opt 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
-      dw.appendChild(dbtn('📄 Opt 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
-      dw.appendChild(dbtn('📄 All 3 Options','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf');}));
+      dw.appendChild(dbtn('📄 Opt 1 + 2','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2]),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
+      dw.appendChild(dbtn('📄 Opt 1 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[1,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
+      dw.appendChild(dbtn('📄 Opt 2 + 3','btn bg',function(){openPrint(makeMultiQuot(bk,[2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
+      dw.appendChild(dbtn('📄 All 3 Options','btn bg',function(){openPrint(makeMultiQuot(bk,[1,2,3]),pdfFileName(bk.guestName,'Quotation')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Quotation'});}));
       // Voucher & Invoice
       dw.appendChild(dlbl('Other Documents:'));
-      dw.appendChild(dbtn('🎫 Voucher','btn og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf');}));
-      dw.appendChild(dbtn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf');}));
-      dw.appendChild(dbtn('🧾 Receipt','btn og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf');}));
+      dw.appendChild(dbtn('🎫 Voucher','btn og',function(){openPrint(makeVouch(bk),pdfFileName(bk.guestName,'Voucher')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Voucher'});}));
+      dw.appendChild(dbtn('🧾 Invoice','btn pp',function(){openPrint(makeInv(bk),pdfFileName(bk.guestName,'Invoice')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Invoice'});}));
+      dw.appendChild(dbtn('🧾 Receipt','btn og',function(){openPrint(makeReceipt(bk),pdfFileName(bk.guestName,'Receipt')+'.pdf',{contact:bk.contact,guestName:bk.guestName,docType:'Receipt'});}));
     })(b);
     frag.appendChild(dw);
 
