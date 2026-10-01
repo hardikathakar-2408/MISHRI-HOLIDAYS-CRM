@@ -1364,6 +1364,15 @@ function bDash(){
   bks.forEach(function(b){if(cnt[b.status]!==undefined)cnt[b.status]++;});
   var wrap=el('div');
   wrap.appendChild(div('','<div class="h1">Dashboard</div><div style="font-size:12px;color:#8A8090;margin-top:2px;margin-bottom:16px">Welcome back — here&rsquo;s your business at a glance</div>'));
+  // Inline booking search, directly on the Dashboard (previously only
+  // reachable via the Bookings list screen or the header 🔍 overlay).
+  // Reuses the EXACT same getSearchIdx()/substring-match predicate as
+  // bList() and the global search overlay — no second/duplicate search
+  // implementation, so results stay consistent everywhere.
+  var dashSearch=el('input');dashSearch.className='inp';dashSearch.id='dashSearchInput';
+  dashSearch.style.cssText='border-radius:18px;margin-bottom:16px';
+  dashSearch.placeholder='🔍  Search bookings — name, ref, destination...';
+  wrap.appendChild(dashSearch);
   // Sync status card
   var onlineColor=APP.online?'#2ECC71':'#E67E22';
   var sc=el('div');sc.className='card';sc.style.cssText='border-color:'+onlineColor+'3d;margin-bottom:14px';
@@ -1384,16 +1393,11 @@ function bDash(){
     g.appendChild(d);});
   wrap.appendChild(g);
   var rbHead=el('div');rbHead.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
-  rbHead.innerHTML='<div class="h2" style="margin:0">Recent Bookings</div>';
-  if(bks.length>5){
-    var viewAllBtn=el('button');viewAllBtn.className='btn sm';viewAllBtn.style.cssText='padding:5px 11px;font-size:11.5px';
-    viewAllBtn.textContent='View All ('+bks.length+') →';
-    viewAllBtn.addEventListener('click',function(){go('list');});
-    rbHead.appendChild(viewAllBtn);
-  }
   wrap.appendChild(rbHead);
-  if(!bks.length){wrap.appendChild(div('text-align:center;color:#8A8090;padding:36px 20px','<div style="font-size:38px;margin-bottom:8px">✈</div><div>No bookings yet. Tap <b style="color:#D4A843">+ New</b> to start.</div>'));wrap.lastChild.classList.add('card');}
-  else{bks.slice(0,5).forEach(function(b){
+  var rbList=el('div');
+  wrap.appendChild(rbList);
+
+  function renderBookingCard(container,b){
     var c=calcOpt(b,b.selectedOption||1);
     var sc2=statusColor(b.status);
     var pc2=priorityColor(b.priority);
@@ -1439,7 +1443,52 @@ function bDash(){
       +summaryStripHtml;
     card.addEventListener('click',function(){APP.edit=JSON.parse(JSON.stringify(b));APP.ftab='guest';go('form');});
     attachLongPress(card,b);
-    wrap.appendChild(card);});}
+    container.appendChild(card);
+  }
+
+  // renderBookingSection(query) — empty query shows the original "Recent
+  // Bookings" view (5 most recent + View All link, unchanged behavior).
+  // A non-empty query reuses getSearchIdx() (same index bList()/global
+  // search already use) and shows ALL matches under "Search Results",
+  // right here on the Dashboard — no navigation to the Bookings list needed.
+  function renderBookingSection(query){
+    query=(query||'').trim().toLowerCase();
+    rbHead.innerHTML='';
+    rbList.innerHTML='';
+    if(query){
+      var matches=bks.filter(function(b){return getSearchIdx(b).indexOf(query)>=0;});
+      rbHead.innerHTML='<div class="h2" style="margin:0">Search Results ('+matches.length+')</div>';
+      if(!matches.length){
+        rbList.appendChild(div('text-align:center;color:#8A8090;padding:36px 20px','<div style="font-size:38px;margin-bottom:8px">🔍</div><div>No bookings match "'+dashSearch.value+'"</div>'));
+        rbList.lastChild.classList.add('card');
+      } else {
+        matches.forEach(function(b){renderBookingCard(rbList,b);});
+      }
+      return;
+    }
+    rbHead.innerHTML='<div class="h2" style="margin:0">Recent Bookings</div>';
+    if(bks.length>5){
+      var viewAllBtn=el('button');viewAllBtn.className='btn sm';viewAllBtn.style.cssText='padding:5px 11px;font-size:11.5px';
+      viewAllBtn.textContent='View All ('+bks.length+') →';
+      viewAllBtn.addEventListener('click',function(){go('list');});
+      rbHead.appendChild(viewAllBtn);
+    }
+    if(!bks.length){
+      rbList.appendChild(div('text-align:center;color:#8A8090;padding:36px 20px','<div style="font-size:38px;margin-bottom:8px">✈</div><div>No bookings yet. Tap <b style="color:#D4A843">+ New</b> to start.</div>'));
+      rbList.lastChild.classList.add('card');
+    } else {
+      bks.slice(0,5).forEach(function(b){renderBookingCard(rbList,b);});
+    }
+  }
+  // Debounced like bList()'s own search (120ms) — typing fast doesn't
+  // re-filter/re-render on every keystroke, only once typing pauses.
+  var dashSearchTimer=null;
+  dashSearch.addEventListener('input',function(){
+    clearTimeout(dashSearchTimer);
+    var v=dashSearch.value;
+    dashSearchTimer=setTimeout(function(){renderBookingSection(v);},120);
+  });
+  renderBookingSection('');
   return wrap;
 }
 
@@ -2220,6 +2269,7 @@ function makeQuot(b,on){
     +'<style>'
     +':root{color-scheme:only light}'
     +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'html{background:#fff}'
     +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
     +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm}'
@@ -2231,10 +2281,10 @@ function makeQuot(b,on){
     +'.title-block{text-align:center;margin-bottom:12px}'
     +'.main-title{font-family:"Playfair Display",Georgia,serif;font-size:24px;font-weight:900;color:#1a1d27;letter-spacing:1.5px}'
     +'.sub-title{font-family:"Poppins",sans-serif;font-size:11.5px;color:#B8892F;font-weight:600;margin-top:4px;letter-spacing:0.4px}'
-    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
+    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #B8892F;border-radius:6px;overflow:hidden;margin-bottom:14px}'
     +'.info-row{display:contents}'
-    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #eee;letter-spacing:0.5px;text-transform:uppercase}'
-    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;color:#1a1d27;font-weight:500}'
+    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:2px solid #B8892F;border-right:2px solid #B8892F;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:2px solid #B8892F;color:#1a1d27;font-weight:500}'
     +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
     +'table{width:100%;border-collapse:collapse}'
     +'th{background:#1a1d27;color:#D4A843;padding:7px 8px;text-align:left;font-size:9px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase}'
@@ -2478,9 +2528,9 @@ function makeMultiQuot(b, options){
     +'.logo-name{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:26px;font-weight:900;color:#B8892F;letter-spacing:0.3px}'
     +'.logo-sub{font-family:"Poppins",sans-serif;font-size:8.5px;color:#999;margin-top:2px;letter-spacing:1.5px;text-transform:uppercase}'
     +'.divider-gold{border:none;border-top:2.5px solid #D4A843;margin:6px 0 10px}'
-    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:14px}'
-    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:1px solid #eee;letter-spacing:0.5px;text-transform:uppercase}'
-    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:1px solid #eee;font-weight:500;color:#1a1d27}'
+    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #B8892F;border-radius:6px;overflow:hidden;margin-bottom:14px}'
+    +'.info-label{background:#fff;color:#B8892F;font-weight:600;font-size:9px;padding:7px 10px;border-bottom:2px solid #B8892F;border-right:2px solid #B8892F;letter-spacing:0.5px;text-transform:uppercase}'
+    +'.info-value{background:#fff;font-size:10.5px;padding:7px 10px;border-bottom:2px solid #B8892F;font-weight:500;color:#1a1d27}'
     +'.section-title{background:#D4A843;color:#1a1d27;font-weight:700;font-size:10px;padding:6px 12px;margin:14px 0 8px;letter-spacing:1px;text-transform:uppercase;border-radius:2px}'
     +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'table{width:100%;border-collapse:collapse;border:1px solid #999}'
@@ -2571,6 +2621,7 @@ function makeDmcQuot(b,rawText,htmlContent){
     +'<style>'
     +':root{color-scheme:only light}'
     +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'html{background:#fff}'
     +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
     +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm}'
@@ -2806,6 +2857,7 @@ function makeVouch(b){
   var css=''
     +':root{color-scheme:only light}'
     +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'html{background:#fff}'
     +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#333;line-height:1.55;-webkit-font-smoothing:antialiased}'
     +'.pg{max-width:210mm;margin:0 auto;padding:9mm 13mm}'
@@ -2977,6 +3029,7 @@ function makeInv(b){
     +'<style>'+DOC_FONT_CSS+'</style>'
     +'<style>'
     +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
     +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm;position:relative}'
     +'.hd{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:3px solid #B8892F}'
@@ -3139,6 +3192,7 @@ function makeReceipt(b,paymentIdx){
     +'<style>'+DOC_FONT_CSS+'</style>'
     +'<style>'
     +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
     +'body{font-family:"Poppins",Arial,Helvetica,sans-serif;font-size:10.5px;color:#2b2b2b;background:#fff;line-height:1.5;-webkit-font-smoothing:antialiased}'
     +'.page{max-width:210mm;margin:0 auto;padding:10mm 14mm;position:relative}'
     +'.hd{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:3px solid #2ECC71}'
@@ -3467,6 +3521,15 @@ function inp(val,setter,type,ph){
   var i=el('input');i.className='inp';i.type=type||'text';
   i.value=(val!==undefined&&val!==null)?String(val):'';
   if(ph)i.placeholder=ph;
+  // Negative-number protection (audit fix): every numeric field in this app —
+  // rates, markup %, room/adult/child counts, mattress charges — goes through
+  // this one shared helper, and none of them are ever meant to hold a
+  // negative value (checked: no discount/negative-adjustment field exists
+  // anywhere in the app). min='0' gives a browser-level hint (blocks the
+  // spinner arrows from going below 0); Math.max(0,...) on input is the
+  // real guard — a typo like "-500" now clamps to 0 instead of silently
+  // corrupting calcOpt()'s totals with no warning.
+  if(type==='number') i.min='0';
   // Bug fix: commit the value on every keystroke (not just on 'change'/blur).
   // Previously the value was only saved to the booking object on 'change', which only
   // fires once the field loses focus. Tapping "Save" while a field was still focused
@@ -3474,8 +3537,33 @@ function inp(val,setter,type,ph){
   // reaching the Save button — so the user had to tap Save a second time before the
   // data actually got written. Using 'input' means the latest value is always already
   // on the object by the time Save is tapped, so a single tap saves correctly.
-  i.addEventListener('input',function(){var v=i.value;if(type==='number')v=parseFloat(v)||0;setter(v);});
+  i.addEventListener('input',function(){var v=i.value;if(type==='number')v=Math.max(0,parseFloat(v)||0);setter(v);});
   return i;
+}
+// Hotel Options — "needs manual fill" highlight (audit fix). When a hotel
+// row is added to Option 2/3, addHotelRow() deliberately leaves Hotel Name/
+// Room Category/Rate/Extra Adult Rate/Child Rate/Child-No-Bed Rate blank
+// (these ARE what makes each option different — see addHotelRow() comment).
+// This only adds a visual highlight on empty fields — no data/calculation
+// logic touched, calcOpt()/addHotelRow() copy-behavior itself is unchanged.
+// isBlank(): a function returning true while the field should be flagged.
+// optN: the option number this row belongs to (1 is never highlighted,
+// since Option 1 is the master — nothing is "copied" there to be missing).
+function markNeedsFill(inputEl, optN, isBlank){
+  function refresh(){
+    var flag = optN!==1 && isBlank();
+    if(flag){
+      inputEl.style.borderColor='#E8A33D';
+      inputEl.style.background='#FFF6E5';
+      inputEl.title='Not auto-filled from Option 1 — needs manual entry';
+    } else {
+      inputEl.style.borderColor='';
+      inputEl.style.background='';
+      if(inputEl.title==='Not auto-filled from Option 1 — needs manual entry') inputEl.title='';
+    }
+  }
+  inputEl.addEventListener('input',refresh);
+  refresh();
 }
 function sel(val,opts,setter){
   var s=el('select');s.className='sel';
@@ -4885,6 +4973,12 @@ function addHotelRow(b){
   // hotel so multi-city itineraries don't need the same numbers typed again — the
   // agent only edits what's actually different (usually just the city + hotel name).
   var nh=emH();
+  // Bug fix: the on-screen note ("Place / Check-In-Out / Rooms / Extra
+  // Adults / Children / Mattress are auto-filled from Option 1") promised
+  // Place would be copied too, but it was never actually set here — every
+  // new row's Place silently stayed blank regardless of Option. Now it
+  // genuinely matches what the note says.
+  nh.place=last1.place||'';
   nh.rooms=last1.rooms||b.rooms||1;
   nh.extraAdults=last1.extraAdults||0;
   nh.extraMattress=last1.extraMattress||0;
@@ -6776,10 +6870,12 @@ function buildTab(tab){
           } else { hotelNameInput.title=''; }
         }
         hotelNameInput.addEventListener('input',refreshHotelHint);refreshHotelHint();
+        markNeedsFill(hotelNameInput,od.n,function(){return !h.hotelName;});
         tr.appendChild(tdWrap(hotelNameInput));
 
         var rcInput=inp(h.roomCat,function(v){updH('roomCat',v);},'text','Room type');
         rcInput.setAttribute('list','roomCatList');rcInput.style.minWidth='90px';
+        markNeedsFill(rcInput,od.n,function(){return !h.roomCat;});
         tr.appendChild(tdWrap(rcInput));
 
         var ciInput=dateInp(h.checkIn,function(v){updH('checkIn',v);});
@@ -6826,6 +6922,7 @@ function buildTab(tab){
         tr.appendChild(tdWrap(sel(h.mealPlan,MEALS,function(v){updH('mealPlan',v);})));
         var rateInput=inp(h.ratePerRoom,function(v){updH('ratePerRoom',parseFloat(v)||0);},'number','0');
         rateInput.addEventListener('input',refreshSummary);
+        markNeedsFill(rateInput,od.n,function(){return !h.ratePerRoom;});
         tr.appendChild(tdWrap(rateInput));
 
         var extraAdultsInput=inp(h.extraAdults,function(v){updH('extraAdults',parseInt(v)||0);},'number','0');
@@ -6833,18 +6930,21 @@ function buildTab(tab){
         tr.appendChild(tdWrap(extraAdultsInput));
         var extraAdultRateInput=inp(h.extraAdultRate,function(v){updH('extraAdultRate',parseFloat(v)||0);},'number','0');
         extraAdultRateInput.addEventListener('input',refreshSummary);
+        markNeedsFill(extraAdultRateInput,od.n,function(){return !h.extraAdultRate;});
         tr.appendChild(tdWrap(extraAdultRateInput));
         var chargeableChildInput=inp(h.chargeableChild,function(v){updH('chargeableChild',parseInt(v)||0);},'number','0');
         chargeableChildInput.addEventListener('input',refreshSummary);
         tr.appendChild(tdWrap(chargeableChildInput));
         var childRateInput=inp(h.childRate,function(v){updH('childRate',parseFloat(v)||0);},'number','0');
         childRateInput.addEventListener('input',refreshSummary);
+        markNeedsFill(childRateInput,od.n,function(){return !h.childRate;});
         tr.appendChild(tdWrap(childRateInput));
         var childNoBedInput=inp(h.childNoBed,function(v){updH('childNoBed',parseInt(v)||0);},'number','0');
         childNoBedInput.addEventListener('input',refreshSummary);
         tr.appendChild(tdWrap(childNoBedInput));
         var childNoBedRateInput=inp(h.childNoBedRate,function(v){updH('childNoBedRate',parseFloat(v)||0);},'number','0');
         childNoBedRateInput.addEventListener('input',refreshSummary);
+        markNeedsFill(childNoBedRateInput,od.n,function(){return !h.childNoBedRate;});
         tr.appendChild(tdWrap(childNoBedRateInput));
         var extraMattressInput=inp(h.extraMattress,function(v){updH('extraMattress',parseInt(v)||0);},'number','0');
         extraMattressInput.addEventListener('input',refreshSummary);
@@ -6909,10 +7009,12 @@ function buildTab(tab){
         var hotelNameInputM=inp(h.hotelName,function(v){updHMobile('hotelName',v);},'text','Hotel name');
         hotelNameInputM.setAttribute('list','hotelDirList');
         hotelNameInputM.classList.add('hcard-m-hotelname');
+        markNeedsFill(hotelNameInputM,od.n,function(){return !h.hotelName;});
         body.appendChild(hotelNameInputM);
 
         var rcInputM=inp(h.roomCat,function(v){updHMobile('roomCat',v);},'text','Room type');
         rcInputM.setAttribute('list','roomCatList');rcInputM.classList.add('hcard-m-roomcat');
+        markNeedsFill(rcInputM,od.n,function(){return !h.roomCat;});
         body.appendChild(rcInputM);
 
         var ciInputM=dateInp(h.checkIn,function(v){updHMobile('checkIn',v);});
@@ -6952,21 +7054,25 @@ function buildTab(tab){
         ratesDetails.appendChild(ratesSummary);
         var rateInputM=inp(h.ratePerRoom,function(v){updHMobile('ratePerRoom',parseFloat(v)||0);},'number','0');
         rateInputM.addEventListener('input',refreshSummary);
+        markNeedsFill(rateInputM,od.n,function(){return !h.ratePerRoom;});
         ratesDetails.appendChild(fld('Rate / Room',rateInputM));
         var extraAdultsInputM=inp(h.extraAdults,function(v){updHMobile('extraAdults',parseInt(v)||0);},'number','0');
         extraAdultsInputM.addEventListener('input',refreshSummary);
         var extraAdultRateInputM=inp(h.extraAdultRate,function(v){updHMobile('extraAdultRate',parseFloat(v)||0);},'number','0');
         extraAdultRateInputM.addEventListener('input',refreshSummary);
+        markNeedsFill(extraAdultRateInputM,od.n,function(){return !h.extraAdultRate;});
         ratesDetails.appendChild(g2([fld('Extra Adults',extraAdultsInputM),fld('Ex.Adult Rate',extraAdultRateInputM)]));
         var chargeableChildInputM=inp(h.chargeableChild,function(v){updHMobile('chargeableChild',parseInt(v)||0);},'number','0');
         chargeableChildInputM.addEventListener('input',refreshSummary);
         var childRateInputM=inp(h.childRate,function(v){updHMobile('childRate',parseFloat(v)||0);},'number','0');
         childRateInputM.addEventListener('input',refreshSummary);
+        markNeedsFill(childRateInputM,od.n,function(){return !h.childRate;});
         ratesDetails.appendChild(g2([fld('CWB',chargeableChildInputM),fld('CWB Rate',childRateInputM)]));
         var childNoBedInputM=inp(h.childNoBed,function(v){updHMobile('childNoBed',parseInt(v)||0);},'number','0');
         childNoBedInputM.addEventListener('input',refreshSummary);
         var childNoBedRateInputM=inp(h.childNoBedRate,function(v){updHMobile('childNoBedRate',parseFloat(v)||0);},'number','0');
         childNoBedRateInputM.addEventListener('input',refreshSummary);
+        markNeedsFill(childNoBedRateInputM,od.n,function(){return !h.childNoBedRate;});
         ratesDetails.appendChild(g2([fld('CNB',childNoBedInputM),fld('CNB Rate',childNoBedRateInputM)]));
         body.appendChild(ratesDetails);
         // V2.7 UI TRIAL — tested directly: a details/summary element's own
